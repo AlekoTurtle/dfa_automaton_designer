@@ -1,0 +1,1811 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DFA Atelier</title>
+  <style>
+    :root {
+      --bg: #f4efe2;
+      --bg-deep: #e8decd;
+      --panel: rgba(255, 252, 246, 0.92);
+      --panel-strong: rgba(255, 252, 246, 0.98);
+      --ink: #1f2f31;
+      --muted: #6d7671;
+      --line: rgba(31, 47, 49, 0.11);
+      --accent: #12706b;
+      --accent-soft: rgba(18, 112, 107, 0.12);
+      --accent-strong: #e76f51;
+      --accent-strong-soft: rgba(231, 111, 81, 0.16);
+      --ok: #2a7f47;
+      --warn: #b26418;
+      --danger: #ba3d2d;
+      --shadow: 0 16px 40px rgba(54, 47, 35, 0.12);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-ui: "Avenir Next", "Trebuchet MS", "Gill Sans", sans-serif;
+      --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(18, 112, 107, 0.2), transparent 32%),
+        radial-gradient(circle at top right, rgba(231, 111, 81, 0.18), transparent 26%),
+        linear-gradient(180deg, var(--bg) 0%, #f9f4ea 52%, var(--bg-deep) 100%);
+      color: var(--ink);
+      font-family: var(--font-ui);
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    button, input, textarea {
+      font: inherit;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid rgba(31, 47, 49, 0.14);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--ink);
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    input:focus, textarea:focus {
+      border-color: rgba(18, 112, 107, 0.58);
+      box-shadow: 0 0 0 4px rgba(18, 112, 107, 0.12);
+    }
+
+    textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 14px;
+      font-size: 0.94rem;
+      color: var(--muted);
+    }
+
+    .label-text {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 20px;
+      border: 1px solid rgba(31, 47, 49, 0.08);
+      border-radius: 30px;
+      background: rgba(255, 249, 239, 0.84);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand small {
+      display: inline-block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-size: 0.74rem;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 2.4vw, 2.5rem);
+      line-height: 1;
+      font-weight: 600;
+    }
+
+    .toolbar,
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .tool-btn,
+    .action-btn {
+      border-radius: 999px;
+      padding: 11px 16px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tool-btn {
+      background: rgba(18, 112, 107, 0.09);
+      color: var(--accent);
+    }
+
+    .tool-btn.active {
+      background: linear-gradient(135deg, var(--accent), #1f8d86);
+      color: #fff;
+      box-shadow: 0 14px 24px rgba(18, 112, 107, 0.18);
+    }
+
+    .action-btn {
+      background: rgba(31, 47, 49, 0.08);
+      color: var(--ink);
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, var(--accent-strong), #ee9b63);
+      color: #fff;
+      box-shadow: 0 14px 24px rgba(231, 111, 81, 0.18);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 320px;
+      gap: 18px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .panel,
+    .canvas-panel {
+      min-height: 0;
+      border: 1px solid rgba(31, 47, 49, 0.08);
+      border-radius: 30px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 14px;
+      overflow-y: auto;
+    }
+
+    .canvas-panel {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .card {
+      padding: 18px;
+      border-radius: 22px;
+      background: var(--panel-strong);
+      border: 1px solid rgba(31, 47, 49, 0.07);
+    }
+
+    .card h2, .card h3 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+    }
+
+    .help-text,
+    .empty-state,
+    .muted {
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.93rem;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .status-pill::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.85;
+    }
+
+    .status-pill.ok {
+      background: rgba(42, 127, 71, 0.13);
+      color: var(--ok);
+    }
+
+    .status-pill.warn {
+      background: rgba(178, 100, 24, 0.12);
+      color: var(--warn);
+    }
+
+    .status-pill.error {
+      background: rgba(186, 61, 45, 0.13);
+      color: var(--danger);
+    }
+
+    .validation-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .validation-item {
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .validation-item.error {
+      background: rgba(186, 61, 45, 0.09);
+      color: #863527;
+    }
+
+    .validation-item.warn {
+      background: rgba(178, 100, 24, 0.09);
+      color: #8a561b;
+    }
+
+    .validation-item.ok {
+      background: rgba(42, 127, 71, 0.09);
+      color: #29633b;
+    }
+
+    .canvas-header,
+    .canvas-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(31, 47, 49, 0.08);
+      background: rgba(255, 252, 246, 0.84);
+    }
+
+    .canvas-footer {
+      border-bottom: none;
+      border-top: 1px solid rgba(31, 47, 49, 0.08);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .canvas-header strong {
+      font-size: 1rem;
+    }
+
+    .canvas-stage {
+      position: relative;
+      min-height: 560px;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(18, 112, 107, 0.08), transparent 28%),
+        radial-gradient(circle at 80% 18%, rgba(231, 111, 81, 0.08), transparent 24%),
+        linear-gradient(180deg, rgba(255, 252, 245, 0.96) 0%, rgba(247, 240, 229, 0.96) 100%);
+    }
+
+    #diagram {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .scene-title {
+      fill: var(--ink);
+      font: 700 30px var(--font-ui);
+      letter-spacing: 0.03em;
+    }
+
+    .scene-subtitle {
+      fill: var(--muted);
+      font: 500 15px var(--font-ui);
+    }
+
+    .transition-path {
+      fill: none;
+      stroke: #1a7f79;
+      stroke-width: 4.5;
+      stroke-linecap: round;
+    }
+
+    .transition-path.selected {
+      stroke: var(--accent-strong);
+    }
+
+    .transition-hit {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 26;
+      cursor: pointer;
+    }
+
+    .transition-label-bg {
+      fill: rgba(255, 252, 246, 0.96);
+      stroke: rgba(31, 47, 49, 0.08);
+      stroke-width: 1;
+    }
+
+    .transition-label-text {
+      fill: var(--ink);
+      font: 700 21px var(--font-ui);
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+    }
+
+    .state-body {
+      fill: rgba(255, 252, 246, 0.98);
+      stroke: var(--ink);
+      stroke-width: 4.5;
+      transition: stroke 0.16s ease, stroke-width 0.16s ease;
+    }
+
+    .state-body.selected {
+      stroke: var(--accent-strong);
+      stroke-width: 6;
+    }
+
+    .state-inner {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: 3;
+      pointer-events: none;
+    }
+
+    .state-label {
+      fill: var(--ink);
+      font: 700 26px var(--font-ui);
+      text-anchor: middle;
+      dominant-baseline: central;
+      pointer-events: none;
+    }
+
+    .start-arrow {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .state-caption {
+      fill: var(--muted);
+      font: 600 13px var(--font-ui);
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .inspector-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .toggle-line {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+      margin-bottom: 12px;
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .toggle-line input {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .danger-btn,
+    .soft-btn {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 16px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .danger-btn {
+      background: rgba(186, 61, 45, 0.12);
+      color: var(--danger);
+    }
+
+    .soft-btn {
+      background: rgba(18, 112, 107, 0.11);
+      color: var(--accent);
+    }
+
+    .state-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .state-chip {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(18, 112, 107, 0.08);
+      color: var(--ink);
+      text-align: left;
+      border: 1px solid transparent;
+    }
+
+    .state-chip.active {
+      border-color: rgba(18, 112, 107, 0.35);
+      background: rgba(18, 112, 107, 0.15);
+    }
+
+    .state-chip small {
+      color: var(--muted);
+    }
+
+    .shortcut-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.92rem;
+    }
+
+    .shortcut-row code {
+      padding: 2px 7px;
+      border-radius: 8px;
+      background: rgba(31, 47, 49, 0.08);
+      font-weight: 700;
+    }
+
+    .selection-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(31, 47, 49, 0.08);
+      color: var(--ink);
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .selection-badge em {
+      color: var(--accent);
+      font-style: normal;
+    }
+
+    .transition-draft {
+      color: var(--accent-strong);
+      font-weight: 700;
+    }
+
+    @media (max-width: 1280px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .app-shell {
+        padding: 12px;
+      }
+
+      .toolbar,
+      .actions {
+        gap: 8px;
+      }
+
+      .tool-btn,
+      .action-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .inspector-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .canvas-header,
+      .canvas-footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .canvas-stage {
+        min-height: 460px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <small>Редактор детерминированного автомата</small>
+        <h1>DFA Atelier</h1>
+      </div>
+
+      <div class="toolbar" aria-label="Инструменты">
+        <button class="tool-btn active" data-mode="select" id="selectModeBtn">Выбор</button>
+        <button class="tool-btn" data-mode="add-state" id="stateModeBtn">Вершина</button>
+        <button class="tool-btn" data-mode="add-transition" id="transitionModeBtn">Переход</button>
+      </div>
+
+      <div class="actions">
+        <button class="action-btn" id="newAutomatonBtn">Новый</button>
+        <button class="action-btn" id="layoutBtn">Разложить</button>
+        <button class="action-btn primary" id="exportPngBtn">Скачать PNG</button>
+        <button class="action-btn" id="exportTxtBtn">Скачать TXT</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel">
+        <section class="card">
+          <h2>Параметры автомата</h2>
+          <label>
+            <span class="label-text">Название</span>
+            <input id="automatonNameInput" type="text" placeholder="Например: Лексер для чисел">
+          </label>
+          <label>
+            <span class="label-text">Алфавит</span>
+            <textarea id="alphabetInput" placeholder="a, b, c"></textarea>
+          </label>
+          <p class="help-text">Символы можно разделять запятыми, пробелами или переносами строк. Проверка ДКА будет учитывать каждый символ отсюда.</p>
+        </section>
+
+        <section class="card">
+          <h2>Проверка ДКА</h2>
+          <div class="status-pill warn" id="statusPill">Нужно заполнить автомат</div>
+          <ul class="validation-list" id="validationList"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Подсказки</h2>
+          <p class="help-text">В режиме <strong>Вершина</strong> нажмите на холст, чтобы добавить состояние. В режиме <strong>Переход</strong> нажмите источник, потом назначение.</p>
+          <div class="shortcut-list">
+            <div class="shortcut-row"><span>Выбор</span><code>V</code></div>
+            <div class="shortcut-row"><span>Вершина</span><code>S</code></div>
+            <div class="shortcut-row"><span>Переход</span><code>T</code></div>
+            <div class="shortcut-row"><span>Удалить выделенное</span><code>Delete</code></div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="canvas-panel">
+        <div class="canvas-header">
+          <div>
+            <strong id="modeTitle">Режим: выбор</strong>
+            <div class="muted" id="modeHint">Перетаскивайте вершины и редактируйте свойства справа.</div>
+          </div>
+          <div class="selection-badge" id="selectionBadge">Выделение: <em>ничего</em></div>
+        </div>
+
+        <div class="canvas-stage">
+          <svg id="diagram" viewBox="0 0 1600 900" aria-label="Редактор автомата"></svg>
+        </div>
+
+        <div class="canvas-footer">
+          <span id="draftHint">Автосохранение включено в браузере.</span>
+          <span id="footerMeta">1600 x 900</span>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <section class="card">
+          <h2>Инспектор</h2>
+
+          <div id="inspectorEmpty" class="empty-state">Выделите вершину или переход, чтобы редактировать подписи, координаты и флаги.</div>
+
+          <form id="stateInspector" hidden>
+            <label>
+              <span class="label-text">Название вершины</span>
+              <input id="stateLabelInput" type="text" placeholder="q0">
+            </label>
+
+            <div class="inspector-grid">
+              <label>
+                <span class="label-text">X</span>
+                <input id="stateXInput" type="number" min="0" max="1600" step="1">
+              </label>
+              <label>
+                <span class="label-text">Y</span>
+                <input id="stateYInput" type="number" min="0" max="900" step="1">
+              </label>
+            </div>
+
+            <label class="toggle-line">
+              <input id="stateStartInput" type="checkbox">
+              <span>Стартовое состояние</span>
+            </label>
+
+            <label class="toggle-line">
+              <input id="stateAcceptInput" type="checkbox">
+              <span>Принимающее состояние</span>
+            </label>
+
+            <button type="button" class="danger-btn" id="deleteStateBtn">Удалить вершину</button>
+          </form>
+
+          <form id="transitionInspector" hidden>
+            <label>
+              <span class="label-text">Маршрут</span>
+              <input id="transitionRouteInput" type="text" readonly>
+            </label>
+
+            <label>
+              <span class="label-text">Символы перехода</span>
+              <textarea id="transitionLabelInput" placeholder="a, b"></textarea>
+            </label>
+
+            <p class="help-text">Если несколько символов ведут по одному и тому же ребру, перечислите их через запятую.</p>
+
+            <button type="button" class="danger-btn" id="deleteTransitionBtn">Удалить переход</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Состояния</h2>
+          <div class="state-list" id="stateList"></div>
+          <button type="button" class="soft-btn" id="centerStatesBtn">Ровный круг</button>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const STORAGE_KEY = "dfa-atelier-autosave-v1";
+    const CANVAS_WIDTH = 1600;
+    const CANVAS_HEIGHT = 900;
+    const STATE_RADIUS = 56;
+
+    const EXPORT_SVG_STYLES = `
+      .scene-title { fill: #1f2f31; font: 700 30px "Avenir Next", "Trebuchet MS", sans-serif; letter-spacing: 0.03em; }
+      .scene-subtitle { fill: #6d7671; font: 500 15px "Avenir Next", "Trebuchet MS", sans-serif; }
+      .transition-path { fill: none; stroke: #1a7f79; stroke-width: 4.5; stroke-linecap: round; }
+      .transition-hit { fill: none; stroke: transparent; stroke-width: 26; }
+      .transition-path.selected { stroke: #e76f51; }
+      .transition-label-bg { fill: rgba(255, 252, 246, 0.95); stroke: rgba(31, 47, 49, 0.08); stroke-width: 1; }
+      .transition-label-text { fill: #1f2f31; font: 700 21px "Avenir Next", "Trebuchet MS", sans-serif; text-anchor: middle; dominant-baseline: middle; }
+      .state-body { fill: rgba(255, 252, 246, 0.98); stroke: #1f2f31; stroke-width: 4.5; }
+      .state-inner { fill: none; stroke: #1f2f31; stroke-width: 3; }
+      .state-body.selected { stroke: #e76f51; stroke-width: 6; filter: drop-shadow(0 10px 18px rgba(231, 111, 81, 0.2)); }
+      .state-label { fill: #1f2f31; font: 700 26px "Avenir Next", "Trebuchet MS", sans-serif; text-anchor: middle; dominant-baseline: central; }
+      .start-arrow { fill: none; stroke: #1f2f31; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+      .state-caption { fill: #6d7671; font: 600 13px "Avenir Next", "Trebuchet MS", sans-serif; text-anchor: middle; }
+    `;
+
+    const els = {
+      automatonNameInput: document.getElementById("automatonNameInput"),
+      alphabetInput: document.getElementById("alphabetInput"),
+      statusPill: document.getElementById("statusPill"),
+      validationList: document.getElementById("validationList"),
+      diagram: document.getElementById("diagram"),
+      modeTitle: document.getElementById("modeTitle"),
+      modeHint: document.getElementById("modeHint"),
+      selectionBadge: document.getElementById("selectionBadge"),
+      draftHint: document.getElementById("draftHint"),
+      footerMeta: document.getElementById("footerMeta"),
+      inspectorEmpty: document.getElementById("inspectorEmpty"),
+      stateInspector: document.getElementById("stateInspector"),
+      transitionInspector: document.getElementById("transitionInspector"),
+      stateLabelInput: document.getElementById("stateLabelInput"),
+      stateXInput: document.getElementById("stateXInput"),
+      stateYInput: document.getElementById("stateYInput"),
+      stateStartInput: document.getElementById("stateStartInput"),
+      stateAcceptInput: document.getElementById("stateAcceptInput"),
+      deleteStateBtn: document.getElementById("deleteStateBtn"),
+      transitionRouteInput: document.getElementById("transitionRouteInput"),
+      transitionLabelInput: document.getElementById("transitionLabelInput"),
+      deleteTransitionBtn: document.getElementById("deleteTransitionBtn"),
+      stateList: document.getElementById("stateList"),
+      centerStatesBtn: document.getElementById("centerStatesBtn"),
+      newAutomatonBtn: document.getElementById("newAutomatonBtn"),
+      layoutBtn: document.getElementById("layoutBtn"),
+      exportPngBtn: document.getElementById("exportPngBtn"),
+      exportTxtBtn: document.getElementById("exportTxtBtn")
+    };
+
+    const app = loadAutomaton();
+    let pointerDrag = null;
+
+    bindUi();
+    render();
+
+    function bindUi() {
+      document.querySelectorAll("[data-mode]").forEach((button) => {
+        button.addEventListener("click", () => setMode(button.dataset.mode));
+      });
+
+      els.automatonNameInput.addEventListener("input", (event) => {
+        app.meta.name = event.target.value;
+        render();
+      });
+
+      els.alphabetInput.addEventListener("input", (event) => {
+        app.meta.alphabet = event.target.value;
+        render();
+      });
+
+      els.stateLabelInput.addEventListener("input", (event) => {
+        const current = getSelectedState();
+        if (!current) {
+          return;
+        }
+        current.label = event.target.value;
+        render();
+      });
+
+      els.stateXInput.addEventListener("input", (event) => {
+        const current = getSelectedState();
+        if (!current) {
+          return;
+        }
+        current.x = clampNumber(Number(event.target.value), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
+        render();
+      });
+
+      els.stateYInput.addEventListener("input", (event) => {
+        const current = getSelectedState();
+        if (!current) {
+          return;
+        }
+        current.y = clampNumber(Number(event.target.value), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
+        render();
+      });
+
+      els.stateStartInput.addEventListener("change", (event) => {
+        const current = getSelectedState();
+        if (!current) {
+          return;
+        }
+        if (event.target.checked) {
+          app.states.forEach((state) => {
+            state.start = state.id === current.id;
+          });
+        } else {
+          current.start = false;
+        }
+        render();
+      });
+
+      els.stateAcceptInput.addEventListener("change", (event) => {
+        const current = getSelectedState();
+        if (!current) {
+          return;
+        }
+        current.accept = event.target.checked;
+        render();
+      });
+
+      els.deleteStateBtn.addEventListener("click", () => {
+        if (app.selection.type === "state") {
+          deleteState(app.selection.id);
+        }
+      });
+
+      els.transitionLabelInput.addEventListener("input", (event) => {
+        const current = getSelectedTransition();
+        if (!current) {
+          return;
+        }
+        current.label = event.target.value;
+        render();
+      });
+
+      els.deleteTransitionBtn.addEventListener("click", () => {
+        if (app.selection.type === "transition") {
+          deleteTransition(app.selection.id);
+        }
+      });
+
+      els.centerStatesBtn.addEventListener("click", arrangeStatesInCircle);
+      els.layoutBtn.addEventListener("click", arrangeStatesInCircle);
+      els.newAutomatonBtn.addEventListener("click", resetAutomaton);
+      els.exportPngBtn.addEventListener("click", exportPng);
+      els.exportTxtBtn.addEventListener("click", exportTxt);
+
+      els.diagram.addEventListener("pointerdown", onCanvasPointerDown);
+      els.diagram.addEventListener("pointermove", onCanvasPointerMove);
+      els.diagram.addEventListener("pointerup", stopDragging);
+      els.diagram.addEventListener("pointerleave", stopDragging);
+
+      document.addEventListener("keydown", (event) => {
+        if (isTypingTarget(event.target)) {
+          return;
+        }
+
+        if (event.key === "Delete" || event.key === "Backspace") {
+          event.preventDefault();
+          deleteSelected();
+          return;
+        }
+
+        if (event.key.toLowerCase() === "v") {
+          setMode("select");
+        } else if (event.key.toLowerCase() === "s") {
+          setMode("add-state");
+        } else if (event.key.toLowerCase() === "t") {
+          setMode("add-transition");
+        } else if (event.key === "Escape" && app.transitionDraft) {
+          app.transitionDraft = null;
+          render();
+        }
+      });
+    }
+
+    function loadAutomaton() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.states && parsed.transitions && parsed.meta) {
+            return normalizeAutomaton(parsed);
+          }
+        }
+      } catch (error) {
+        console.warn("Не удалось загрузить черновик автомата", error);
+      }
+      return createStarterAutomaton();
+    }
+
+    function normalizeAutomaton(raw) {
+      return {
+        meta: {
+          name: typeof raw.meta.name === "string" ? raw.meta.name : "Новый автомат",
+          alphabet: typeof raw.meta.alphabet === "string" ? raw.meta.alphabet : "",
+          nextStateIndex: Number.isFinite(raw.meta.nextStateIndex) ? raw.meta.nextStateIndex : 1,
+          nextTransitionIndex: Number.isFinite(raw.meta.nextTransitionIndex) ? raw.meta.nextTransitionIndex : 1
+        },
+        mode: "select",
+        selection: { type: null, id: null },
+        transitionDraft: null,
+        states: Array.isArray(raw.states) ? raw.states.map((state) => ({
+          id: String(state.id),
+          label: typeof state.label === "string" ? state.label : "q?",
+          x: clampNumber(Number(state.x), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20),
+          y: clampNumber(Number(state.y), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20),
+          start: Boolean(state.start),
+          accept: Boolean(state.accept)
+        })) : [],
+        transitions: Array.isArray(raw.transitions) ? raw.transitions.map((transition) => ({
+          id: String(transition.id),
+          from: String(transition.from),
+          to: String(transition.to),
+          label: typeof transition.label === "string" ? transition.label : ""
+        })) : []
+      };
+    }
+
+    function createStarterAutomaton() {
+      return {
+        meta: {
+          name: "Новый автомат",
+          alphabet: "0, 1",
+          nextStateIndex: 3,
+          nextTransitionIndex: 1
+        },
+        mode: "select",
+        selection: { type: "state", id: "state-1" },
+        transitionDraft: null,
+        states: [
+          { id: "state-1", label: "q0", x: 430, y: 450, start: true, accept: false },
+          { id: "state-2", label: "q1", x: 930, y: 450, start: false, accept: true }
+        ],
+        transitions: []
+      };
+    }
+
+    function saveAutomaton() {
+      const payload = {
+        meta: app.meta,
+        states: app.states,
+        transitions: app.transitions
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }
+
+    function render() {
+      syncInputs();
+      renderCanvas();
+      renderInspector();
+      renderStateList();
+      renderValidation();
+      renderToolbar();
+      saveAutomaton();
+    }
+
+    function syncInputs() {
+      if (document.activeElement !== els.automatonNameInput) {
+        els.automatonNameInput.value = app.meta.name;
+      }
+      if (document.activeElement !== els.alphabetInput) {
+        els.alphabetInput.value = app.meta.alphabet;
+      }
+    }
+
+    function renderToolbar() {
+      document.querySelectorAll("[data-mode]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.mode === app.mode);
+      });
+
+      const hints = {
+        "select": {
+          title: "Режим: выбор",
+          hint: "Перетаскивайте вершины и редактируйте свойства справа."
+        },
+        "add-state": {
+          title: "Режим: вершина",
+          hint: "Нажмите в свободное место холста, чтобы поставить новую вершину."
+        },
+        "add-transition": {
+          title: "Режим: переход",
+          hint: "Выберите вершину-источник, затем вершину-назначение."
+        }
+      };
+
+      const current = hints[app.mode];
+      els.modeTitle.textContent = current.title;
+      els.modeHint.textContent = current.hint;
+
+      if (app.transitionDraft) {
+        const source = getState(app.transitionDraft.from);
+        const sourceLabel = source ? source.label : "?";
+        els.draftHint.innerHTML = '<span class="transition-draft">Черновик перехода:</span> выбрано состояние ' + sourceLabel + ". Теперь укажите, куда ведет стрелка.";
+      } else {
+        els.draftHint.textContent = "Автосохранение включено в браузере.";
+      }
+
+      if (app.selection.type === "state") {
+        const state = getSelectedState();
+        els.selectionBadge.innerHTML = "Выделение: <em>" + (state ? "вершина " + escapeHtml(state.label) : "ничего") + "</em>";
+      } else if (app.selection.type === "transition") {
+        const transition = getSelectedTransition();
+        if (transition) {
+          const from = getState(transition.from);
+          const to = getState(transition.to);
+          const route = (from ? from.label : "?") + " -> " + (to ? to.label : "?");
+          els.selectionBadge.innerHTML = "Выделение: <em>переход " + escapeHtml(route) + "</em>";
+        } else {
+          els.selectionBadge.innerHTML = "Выделение: <em>ничего</em>";
+        }
+      } else {
+        els.selectionBadge.innerHTML = "Выделение: <em>ничего</em>";
+      }
+
+      els.footerMeta.textContent = app.states.length + " вершин, " + app.transitions.length + " переходов";
+    }
+
+    function renderCanvas() {
+      els.diagram.replaceChildren();
+
+      const defs = svgEl("defs");
+      defs.append(
+        svgEl("linearGradient", { id: "sceneGradient", x1: "0%", y1: "0%", x2: "100%", y2: "100%" }, [
+          svgEl("stop", { offset: "0%", "stop-color": "#fffdf7" }),
+          svgEl("stop", { offset: "70%", "stop-color": "#f5ecdf" }),
+          svgEl("stop", { offset: "100%", "stop-color": "#eee0cf" })
+        ]),
+        svgEl("pattern", { id: "sceneGrid", width: "48", height: "48", patternUnits: "userSpaceOnUse" }, [
+          svgEl("path", { d: "M 48 0 L 0 0 0 48", fill: "none", stroke: "rgba(31,47,49,0.08)", "stroke-width": "1" })
+        ]),
+        svgEl("marker", {
+          id: "arrowMarker",
+          markerWidth: "14",
+          markerHeight: "14",
+          refX: "11.5",
+          refY: "6",
+          orient: "auto",
+          markerUnits: "strokeWidth"
+        }, [
+          svgEl("path", { d: "M 0 0 L 12 6 L 0 12 z", fill: "#1a7f79" })
+        ]),
+        svgEl("marker", {
+          id: "arrowMarkerSelected",
+          markerWidth: "14",
+          markerHeight: "14",
+          refX: "11.5",
+          refY: "6",
+          orient: "auto",
+          markerUnits: "strokeWidth"
+        }, [
+          svgEl("path", { d: "M 0 0 L 12 6 L 0 12 z", fill: "#e76f51" })
+        ])
+      );
+      els.diagram.append(defs);
+
+      els.diagram.append(
+        svgEl("rect", { x: "0", y: "0", width: CANVAS_WIDTH, height: CANVAS_HEIGHT, fill: "url(#sceneGradient)", "pointer-events": "none" }),
+        svgEl("rect", { x: "0", y: "0", width: CANVAS_WIDTH, height: CANVAS_HEIGHT, fill: "url(#sceneGrid)", opacity: "0.92", "pointer-events": "none" }),
+        svgEl("circle", { cx: "1260", cy: "140", r: "110", fill: "#12706b", "fill-opacity": "0.06", "pointer-events": "none" }),
+        svgEl("circle", { cx: "310", cy: "780", r: "150", fill: "#e76f51", "fill-opacity": "0.06", "pointer-events": "none" }),
+        svgEl("text", { x: "70", y: "78", class: "scene-title", "pointer-events": "none" }, [document.createTextNode(app.meta.name || "Новый автомат")]),
+        svgEl("text", { x: "70", y: "108", class: "scene-subtitle", "pointer-events": "none" }, [document.createTextNode("Редактор детерминированного автомата")])
+      );
+
+      const transitionLayer = svgEl("g");
+      app.transitions.forEach((transition) => {
+        const from = getState(transition.from);
+        const to = getState(transition.to);
+        if (!from || !to) {
+          return;
+        }
+
+        const selected = app.selection.type === "transition" && app.selection.id === transition.id;
+        const geometry = getTransitionGeometry(transition, from, to);
+        const path = svgEl("path", {
+          d: geometry.path,
+          class: "transition-path" + (selected ? " selected" : ""),
+          "marker-end": selected ? "url(#arrowMarkerSelected)" : "url(#arrowMarker)"
+        });
+        const hit = svgEl("path", {
+          d: geometry.path,
+          class: "transition-hit"
+        });
+        hit.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          selectTransition(transition.id);
+        });
+
+        const labelGroup = svgEl("g");
+        labelGroup.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          selectTransition(transition.id);
+        });
+        labelGroup.append(
+          svgEl("rect", {
+            x: geometry.label.x - Math.max(38, transitionLabelWidth(transition.label)),
+            y: geometry.label.y - 17,
+            width: Math.max(76, transitionLabelWidth(transition.label) * 2),
+            height: "34",
+            rx: "12",
+            class: "transition-label-bg"
+          }),
+          svgEl("text", {
+            x: geometry.label.x,
+            y: geometry.label.y + 1,
+            class: "transition-label-text"
+          }, [document.createTextNode(transition.label.trim() || "set")])
+        );
+
+        transitionLayer.append(path, hit, labelGroup);
+      });
+      els.diagram.append(transitionLayer);
+
+      const stateLayer = svgEl("g");
+      app.states.forEach((state) => {
+        const selected = app.selection.type === "state" && app.selection.id === state.id;
+        const group = svgEl("g");
+        group.style.cursor = app.mode === "add-transition" ? "crosshair" : "grab";
+        group.addEventListener("pointerdown", (event) => onStatePointerDown(event, state.id));
+
+        if (state.start) {
+          group.append(svgEl("path", {
+            d: startArrowPath(state.x, state.y),
+            class: "start-arrow"
+          }));
+        }
+
+        group.append(
+          svgEl("circle", {
+            cx: state.x,
+            cy: state.y,
+            r: STATE_RADIUS,
+            class: "state-body" + (selected ? " selected" : "")
+          })
+        );
+
+        if (state.accept) {
+          group.append(svgEl("circle", {
+            cx: state.x,
+            cy: state.y,
+            r: STATE_RADIUS - 11,
+            class: "state-inner"
+          }));
+        }
+
+        group.append(
+          svgEl("text", {
+            x: state.x,
+            y: state.y + 1,
+            class: "state-label"
+          }, [document.createTextNode(state.label || "q?")]),
+          svgEl("text", {
+            x: state.x,
+            y: state.y + STATE_RADIUS + 26,
+            class: "state-caption"
+          }, [document.createTextNode(state.start ? "start" : state.accept ? "accept" : "")])
+        );
+
+        stateLayer.append(group);
+      });
+      els.diagram.append(stateLayer);
+    }
+
+    function renderInspector() {
+      const selectedState = getSelectedState();
+      const selectedTransition = getSelectedTransition();
+
+      els.inspectorEmpty.hidden = Boolean(selectedState || selectedTransition);
+      els.stateInspector.hidden = !selectedState;
+      els.transitionInspector.hidden = !selectedTransition;
+
+      if (selectedState) {
+        if (document.activeElement !== els.stateLabelInput) {
+          els.stateLabelInput.value = selectedState.label;
+        }
+        if (document.activeElement !== els.stateXInput) {
+          els.stateXInput.value = Math.round(selectedState.x);
+        }
+        if (document.activeElement !== els.stateYInput) {
+          els.stateYInput.value = Math.round(selectedState.y);
+        }
+        els.stateStartInput.checked = selectedState.start;
+        els.stateAcceptInput.checked = selectedState.accept;
+      }
+
+      if (selectedTransition) {
+        const from = getState(selectedTransition.from);
+        const to = getState(selectedTransition.to);
+        els.transitionRouteInput.value = (from ? from.label : "?") + " -> " + (to ? to.label : "?");
+        if (document.activeElement !== els.transitionLabelInput) {
+          els.transitionLabelInput.value = selectedTransition.label;
+        }
+      }
+    }
+
+    function renderStateList() {
+      els.stateList.replaceChildren();
+      app.states.forEach((state) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "state-chip" + (app.selection.type === "state" && app.selection.id === state.id ? " active" : "");
+        button.innerHTML = "<span><strong>" + escapeHtml(state.label) + "</strong><br><small>" + stateRoleLabel(state) + "</small></span><small>" + Math.round(state.x) + ", " + Math.round(state.y) + "</small>";
+        button.addEventListener("click", () => {
+          selectState(state.id);
+          setMode("select");
+        });
+        els.stateList.append(button);
+      });
+    }
+
+    function renderValidation() {
+      const result = validateAutomaton();
+      els.validationList.replaceChildren();
+
+      result.messages.forEach((message) => {
+        const li = document.createElement("li");
+        li.className = "validation-item " + message.level;
+        li.textContent = message.text;
+        els.validationList.append(li);
+      });
+
+      els.statusPill.className = "status-pill " + result.status;
+      els.statusPill.textContent = result.summary;
+    }
+
+    function validateAutomaton() {
+      const messages = [];
+      const alphabet = parseAlphabet(app.meta.alphabet);
+      const startStates = app.states.filter((state) => state.start);
+      const labels = new Map();
+      const symbolMap = new Map();
+
+      if (!app.states.length) {
+        messages.push({ level: "error", text: "Добавьте хотя бы одну вершину." });
+      }
+
+      if (startStates.length === 0) {
+        messages.push({ level: "error", text: "Нужно отметить стартовое состояние." });
+      } else if (startStates.length > 1) {
+        messages.push({ level: "error", text: "У ДКА должно быть ровно одно стартовое состояние." });
+      }
+
+      if (!alphabet.length) {
+        messages.push({ level: "warn", text: "Алфавит пока пуст. Введите символы, чтобы включить строгую проверку детерминированности." });
+      }
+
+      app.states.forEach((state) => {
+        const normalized = state.label.trim();
+        if (!normalized) {
+          messages.push({ level: "error", text: "У одной из вершин пустое имя." });
+          return;
+        }
+        if (labels.has(normalized)) {
+          messages.push({ level: "error", text: "Имена состояний должны быть уникальными: \"" + normalized + "\" повторяется." });
+        } else {
+          labels.set(normalized, state.id);
+        }
+      });
+
+      app.transitions.forEach((transition) => {
+        const from = getState(transition.from);
+        const to = getState(transition.to);
+        if (!from || !to) {
+          messages.push({ level: "error", text: "Есть переход с потерянной вершиной. Удалите его." });
+          return;
+        }
+
+        const symbols = parseSymbols(transition.label);
+        if (!symbols.length) {
+          messages.push({ level: "warn", text: "Переход " + from.label + " -> " + to.label + " пока без символов." });
+          return;
+        }
+
+        symbols.forEach((symbol) => {
+          if (symbol === "ε" || /^eps/i.test(symbol)) {
+            messages.push({ level: "error", text: "В детерминированном автомате не должно быть epsilon-переходов: " + from.label + " -> " + to.label + "." });
+          }
+
+          if (alphabet.length && !alphabet.includes(symbol)) {
+            messages.push({ level: "warn", text: "Символ \"" + symbol + "\" в переходе " + from.label + " -> " + to.label + " отсутствует в алфавите." });
+          }
+
+          const key = transition.from + "::" + symbol;
+          if (symbolMap.has(key)) {
+            const previousTarget = symbolMap.get(key);
+            if (previousTarget !== transition.to) {
+              const previousState = getState(previousTarget);
+              messages.push({
+                level: "error",
+                text: "Недетерминированность: из " + from.label + " по символу \"" + symbol + "\" есть переходы в " + (previousState ? previousState.label : "?") + " и " + to.label + "."
+              });
+            }
+          } else {
+            symbolMap.set(key, transition.to);
+          }
+        });
+      });
+
+      if (alphabet.length) {
+        app.states.forEach((state) => {
+          alphabet.forEach((symbol) => {
+            const key = state.id + "::" + symbol;
+            if (!symbolMap.has(key)) {
+              messages.push({ level: "warn", text: "Из состояния " + state.label + " нет перехода по символу \"" + symbol + "\"." });
+            }
+          });
+        });
+      }
+
+      if (!messages.length) {
+        messages.push({ level: "ok", text: "Автомат выглядит как корректный полный ДКА для заданного алфавита." });
+      }
+
+      const hasError = messages.some((message) => message.level === "error");
+      const hasWarn = messages.some((message) => message.level === "warn");
+      return {
+        status: hasError ? "error" : hasWarn ? "warn" : "ok",
+        summary: hasError ? "Есть ошибки" : hasWarn ? "Почти готово" : "Корректный ДКА",
+        messages
+      };
+    }
+
+    function setMode(mode) {
+      app.mode = mode;
+      if (mode !== "add-transition") {
+        app.transitionDraft = null;
+      }
+      render();
+    }
+
+    function onCanvasPointerDown(event) {
+      if (event.target !== els.diagram) {
+        return;
+      }
+      const point = getSvgPoint(event);
+      if (app.mode === "add-state") {
+        createState(point.x, point.y);
+      } else if (app.mode === "add-transition" && app.transitionDraft) {
+        app.transitionDraft = null;
+        render();
+      } else {
+        clearSelection();
+      }
+    }
+
+    function onStatePointerDown(event, stateId) {
+      event.stopPropagation();
+
+      if (app.mode === "add-transition") {
+        handleTransitionClick(stateId);
+        return;
+      }
+
+      selectState(stateId);
+      if (app.mode !== "select") {
+        return;
+      }
+
+      const state = getState(stateId);
+      const point = getSvgPoint(event);
+      pointerDrag = {
+        stateId,
+        offsetX: state.x - point.x,
+        offsetY: state.y - point.y,
+        pointerId: event.pointerId
+      };
+      els.diagram.setPointerCapture(event.pointerId);
+    }
+
+    function onCanvasPointerMove(event) {
+      if (!pointerDrag) {
+        return;
+      }
+
+      const state = getState(pointerDrag.stateId);
+      if (!state) {
+        stopDragging();
+        return;
+      }
+
+      const point = getSvgPoint(event);
+      state.x = clampNumber(point.x + pointerDrag.offsetX, STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
+      state.y = clampNumber(point.y + pointerDrag.offsetY, STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
+      render();
+    }
+
+    function stopDragging() {
+      pointerDrag = null;
+    }
+
+    function handleTransitionClick(stateId) {
+      if (!app.transitionDraft) {
+        app.transitionDraft = { from: stateId };
+        selectState(stateId);
+        render();
+        return;
+      }
+
+      const fromId = app.transitionDraft.from;
+      const existing = app.transitions.find((transition) => transition.from === fromId && transition.to === stateId);
+      if (existing) {
+        selectTransition(existing.id);
+      } else {
+        const transition = {
+          id: "transition-" + app.meta.nextTransitionIndex++,
+          from: fromId,
+          to: stateId,
+          label: ""
+        };
+        app.transitions.push(transition);
+        selectTransition(transition.id);
+      }
+      app.transitionDraft = null;
+      render();
+      if (document.activeElement !== els.transitionLabelInput) {
+        setTimeout(() => els.transitionLabelInput.focus(), 0);
+      }
+    }
+
+    function createState(x, y) {
+      const label = nextStateLabel();
+      const state = {
+        id: "state-" + app.meta.nextStateIndex++,
+        label,
+        x: clampNumber(Math.round(x), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20),
+        y: clampNumber(Math.round(y), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20),
+        start: app.states.length === 0,
+        accept: false
+      };
+      app.states.push(state);
+      selectState(state.id);
+      setMode("select");
+      render();
+    }
+
+    function nextStateLabel() {
+      let index = 0;
+      const existing = new Set(app.states.map((state) => state.label.trim()));
+      while (existing.has("q" + index)) {
+        index += 1;
+      }
+      return "q" + index;
+    }
+
+    function arrangeStatesInCircle() {
+      if (!app.states.length) {
+        return;
+      }
+      const centerX = CANVAS_WIDTH / 2;
+      const centerY = CANVAS_HEIGHT / 2 + 20;
+      const radius = Math.min(280, 110 + app.states.length * 26);
+      app.states.forEach((state, index) => {
+        const angle = (-Math.PI / 2) + (index / app.states.length) * Math.PI * 2;
+        state.x = Math.round(centerX + Math.cos(angle) * radius);
+        state.y = Math.round(centerY + Math.sin(angle) * radius);
+      });
+      render();
+    }
+
+    function resetAutomaton() {
+      const confirmed = window.confirm("Очистить текущий автомат и начать заново?");
+      if (!confirmed) {
+        return;
+      }
+
+      const fresh = createStarterAutomaton();
+      app.meta = fresh.meta;
+      app.mode = fresh.mode;
+      app.selection = fresh.selection;
+      app.transitionDraft = fresh.transitionDraft;
+      app.states = fresh.states;
+      app.transitions = fresh.transitions;
+      render();
+    }
+
+    function deleteSelected() {
+      if (app.selection.type === "state") {
+        deleteState(app.selection.id);
+      } else if (app.selection.type === "transition") {
+        deleteTransition(app.selection.id);
+      }
+    }
+
+    function deleteState(stateId) {
+      const state = getState(stateId);
+      if (!state) {
+        return;
+      }
+      app.states = app.states.filter((item) => item.id !== stateId);
+      app.transitions = app.transitions.filter((transition) => transition.from !== stateId && transition.to !== stateId);
+      clearSelection();
+      if (state.start && app.states[0]) {
+        app.states[0].start = true;
+      }
+      render();
+    }
+
+    function deleteTransition(transitionId) {
+      app.transitions = app.transitions.filter((transition) => transition.id !== transitionId);
+      clearSelection();
+      render();
+    }
+
+    function selectState(stateId) {
+      app.selection = { type: "state", id: stateId };
+      render();
+    }
+
+    function selectTransition(transitionId) {
+      app.selection = { type: "transition", id: transitionId };
+      render();
+    }
+
+    function clearSelection() {
+      app.selection = { type: null, id: null };
+      render();
+    }
+
+    function getSelectedState() {
+      return app.selection.type === "state" ? getState(app.selection.id) : null;
+    }
+
+    function getSelectedTransition() {
+      return app.selection.type === "transition"
+        ? app.transitions.find((transition) => transition.id === app.selection.id) || null
+        : null;
+    }
+
+    function getState(id) {
+      return app.states.find((state) => state.id === id) || null;
+    }
+
+    function parseAlphabet(raw) {
+      return Array.from(new Set(
+        String(raw)
+          .split(/[,;\n ]+/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+      ));
+    }
+
+    function parseSymbols(raw) {
+      return Array.from(new Set(
+        String(raw)
+          .split(/[,;\n]+/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+      ));
+    }
+
+    function exportTxt() {
+      const alphabet = parseAlphabet(app.meta.alphabet);
+      const start = app.states.find((state) => state.start);
+      const accepting = app.states.filter((state) => state.accept).map((state) => state.label);
+      const lines = [
+        "Automaton: " + (app.meta.name || "Untitled DFA"),
+        "",
+        "Alphabet: " + (alphabet.join(", ") || "(not set)"),
+        "States: " + (app.states.map((state) => state.label).join(", ") || "(none)"),
+        "Start: " + (start ? start.label : "(none)"),
+        "Accepting: " + (accepting.join(", ") || "(none)"),
+        "",
+        "Transitions:"
+      ];
+
+      if (!app.transitions.length) {
+        lines.push("(none)");
+      } else {
+        app.transitions.forEach((transition) => {
+          const from = getState(transition.from);
+          const to = getState(transition.to);
+          if (!from || !to) {
+            return;
+          }
+          lines.push(from.label + " --" + (transition.label.trim() || "?") + "--> " + to.label);
+        });
+      }
+
+      lines.push("");
+      lines.push("Machine-readable:");
+      lines.push("states=" + app.states.map((state) => state.label).join(","));
+      lines.push("alphabet=" + alphabet.join(","));
+      lines.push("start=" + (start ? start.label : ""));
+      lines.push("accepting=" + accepting.join(","));
+      app.transitions.forEach((transition) => {
+        const from = getState(transition.from);
+        const to = getState(transition.to);
+        if (!from || !to) {
+          return;
+        }
+        parseSymbols(transition.label).forEach((symbol) => {
+          lines.push("delta(" + from.label + "," + symbol + ")=" + to.label);
+        });
+      });
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      downloadBlob(blob, safeFileName(app.meta.name || "dfa") + ".txt");
+    }
+
+    function exportPng() {
+      const svgMarkup = serializeDiagramSvg();
+      const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+      const image = new Image();
+
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = CANVAS_WIDTH * 2;
+        canvas.height = CANVAS_HEIGHT * 2;
+        const context = canvas.getContext("2d");
+        context.scale(2, 2);
+        context.drawImage(image, 0, 0);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            downloadBlob(blob, safeFileName(app.meta.name || "dfa") + ".png");
+          }
+          URL.revokeObjectURL(url);
+        }, "image/png");
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        window.alert("Не удалось собрать PNG. Попробуйте еще раз.");
+      };
+
+      image.src = url;
+    }
+
+    function serializeDiagramSvg() {
+      const clone = els.diagram.cloneNode(true);
+      clone.setAttribute("xmlns", SVG_NS);
+      const style = document.createElementNS(SVG_NS, "style");
+      style.textContent = EXPORT_SVG_STYLES;
+      clone.insertBefore(style, clone.firstChild);
+      return new XMLSerializer().serializeToString(clone);
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function getTransitionGeometry(transition, from, to) {
+      if (from.id === to.id) {
+        const loopTop = from.y - STATE_RADIUS - 18;
+        return {
+          path: "M " + (from.x - STATE_RADIUS * 0.42) + " " + loopTop +
+            " C " + (from.x - STATE_RADIUS * 1.85) + " " + (from.y - STATE_RADIUS * 2.65) +
+            ", " + (from.x + STATE_RADIUS * 1.85) + " " + (from.y - STATE_RADIUS * 2.65) +
+            ", " + (from.x + STATE_RADIUS * 0.42) + " " + loopTop,
+          label: { x: from.x, y: from.y - STATE_RADIUS * 2.55 }
+        };
+      }
+
+      const reversed = app.transitions.some((item) => item.from === transition.to && item.to === transition.from);
+      const fromIndex = app.states.findIndex((state) => state.id === from.id);
+      const toIndex = app.states.findIndex((state) => state.id === to.id);
+      const direction = fromIndex <= toIndex ? 1 : -1;
+      const curveOffset = reversed ? 72 * direction : 0;
+
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const normX = dx / length;
+      const normY = dy / length;
+      const perpX = -normY;
+      const perpY = normX;
+
+      const control = {
+        x: (from.x + to.x) / 2 + perpX * curveOffset,
+        y: (from.y + to.y) / 2 + perpY * curveOffset
+      };
+
+      const startVector = normalize(control.x - from.x, control.y - from.y);
+      const endVector = normalize(control.x - to.x, control.y - to.y);
+
+      const start = {
+        x: from.x + startVector.x * STATE_RADIUS,
+        y: from.y + startVector.y * STATE_RADIUS
+      };
+      const end = {
+        x: to.x + endVector.x * STATE_RADIUS,
+        y: to.y + endVector.y * STATE_RADIUS
+      };
+
+      const label = quadraticPoint(start, control, end, 0.5);
+      return {
+        path: "M " + round(start.x) + " " + round(start.y) + " Q " + round(control.x) + " " + round(control.y) + " " + round(end.x) + " " + round(end.y),
+        label: {
+          x: label.x + perpX * (curveOffset ? 12 * direction : 0),
+          y: label.y + perpY * (curveOffset ? 12 * direction : -12)
+        }
+      };
+    }
+
+    function quadraticPoint(start, control, end, t) {
+      const mt = 1 - t;
+      return {
+        x: mt * mt * start.x + 2 * mt * t * control.x + t * t * end.x,
+        y: mt * mt * start.y + 2 * mt * t * control.y + t * t * end.y
+      };
+    }
+
+    function normalize(x, y) {
+      const length = Math.hypot(x, y) || 1;
+      return { x: x / length, y: y / length };
+    }
+
+    function transitionLabelWidth(label) {
+      const text = label.trim() || "set";
+      return Math.max(38, text.length * 6.6 + 18);
+    }
+
+    function startArrowPath(x, y) {
+      return "M " + (x - STATE_RADIUS - 80) + " " + y +
+        " L " + (x - STATE_RADIUS - 24) + " " + y +
+        " M " + (x - STATE_RADIUS - 42) + " " + (y - 18) +
+        " L " + (x - STATE_RADIUS - 24) + " " + y +
+        " L " + (x - STATE_RADIUS - 42) + " " + (y + 18);
+    }
+
+    function svgEl(name, attrs = {}, children = []) {
+      const node = document.createElementNS(SVG_NS, name);
+      Object.entries(attrs).forEach(([key, value]) => {
+        node.setAttribute(key, String(value));
+      });
+      children.forEach((child) => node.append(child));
+      return node;
+    }
+
+    function getSvgPoint(event) {
+      const point = els.diagram.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      return point.matrixTransform(els.diagram.getScreenCTM().inverse());
+    }
+
+    function isTypingTarget(target) {
+      return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+    }
+
+    function clampNumber(value, min, max) {
+      if (!Number.isFinite(value)) {
+        return min;
+      }
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function safeFileName(input) {
+      return String(input)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9а-яё_-]+/gi, "-")
+        .replace(/^-+|-+$/g, "") || "dfa";
+    }
+
+    function round(value) {
+      return Math.round(value * 100) / 100;
+    }
+
+    function stateRoleLabel(state) {
+      if (state.start && state.accept) {
+        return "start, accept";
+      }
+      if (state.start) {
+        return "start";
+      }
+      if (state.accept) {
+        return "accept";
+      }
+      return "state";
+    }
+
+    function escapeHtml(input) {
+      return String(input)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+  </script>
+</body>
+</html>
