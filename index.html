@@ -787,11 +787,13 @@
   <script>
     const SVG_NS = "http://www.w3.org/2000/svg";
     const STORAGE_KEY = "dfa-atelier-autosave-v1";
-    const CANVAS_WIDTH = 1600;
-    const CANVAS_HEIGHT = 900;
+    const CANVAS_WIDTH = 4800;
+    const CANVAS_HEIGHT = 2700;
+    const DEFAULT_VIEW_WIDTH = 1600;
+    const DEFAULT_VIEW_HEIGHT = 900;
     const STATE_RADIUS = 56;
     const MIN_VIEW_WIDTH = 420;
-    const MAX_VIEW_WIDTH = CANVAS_WIDTH * 1.8;
+    const MAX_VIEW_WIDTH = CANVAS_WIDTH;
     const PAN_THRESHOLD = 5;
 
     const EXPORT_SVG_STYLES = `
@@ -1141,7 +1143,7 @@
       }
 
       els.zoomResetBtn.textContent = zoomPercentageLabel();
-      els.footerMeta.textContent = app.states.length + " вершин, " + app.transitions.length + " переходов, масштаб " + zoomPercentageLabel();
+      els.footerMeta.textContent = app.states.length + " вершин, " + app.transitions.length + " переходов, поле " + CANVAS_WIDTH + " x " + CANVAS_HEIGHT + ", масштаб " + zoomPercentageLabel();
     }
 
     function renderCanvas() {
@@ -1631,7 +1633,7 @@
       if (!app.states.length) {
         return;
       }
-      positionStatesInCircle(app.states);
+      positionStatesInCircle(app.states, getViewCenter());
       render();
     }
 
@@ -2142,6 +2144,12 @@
           nextStateIndex: app.meta.nextStateIndex,
           nextTransitionIndex: app.meta.nextTransitionIndex
         },
+        view: {
+          x: app.view.x,
+          y: app.view.y,
+          width: app.view.width,
+          height: app.view.height
+        },
         states: app.states.map((state) => ({
           id: state.id,
           label: state.label,
@@ -2164,13 +2172,14 @@
       const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
       const url = URL.createObjectURL(svgBlob);
       const image = new Image();
+      const exportScale = Math.min(2, 4000 / CANVAS_WIDTH);
 
       image.onload = () => {
         const canvas = document.createElement("canvas");
-        canvas.width = CANVAS_WIDTH * 2;
-        canvas.height = CANVAS_HEIGHT * 2;
+        canvas.width = Math.round(CANVAS_WIDTH * exportScale);
+        canvas.height = Math.round(CANVAS_HEIGHT * exportScale);
         const context = canvas.getContext("2d");
-        context.scale(2, 2);
+        context.scale(exportScale, exportScale);
         context.drawImage(image, 0, 0);
         canvas.toBlob((blob) => {
           if (blob) {
@@ -2288,24 +2297,27 @@
         " L " + (x - STATE_RADIUS - 42) + " " + (y + 18);
     }
 
-    function positionStatesInCircle(states) {
+    function positionStatesInCircle(states, center = null) {
       if (!states.length) {
         return;
       }
 
+      const targetCenter = center || {
+        x: DEFAULT_VIEW_WIDTH / 2,
+        y: DEFAULT_VIEW_HEIGHT / 2
+      };
+
       if (states.length === 1) {
-        states[0].x = CANVAS_WIDTH / 2;
-        states[0].y = CANVAS_HEIGHT / 2;
+        states[0].x = clampNumber(targetCenter.x, STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
+        states[0].y = clampNumber(targetCenter.y, STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
         return;
       }
 
-      const centerX = CANVAS_WIDTH / 2;
-      const centerY = CANVAS_HEIGHT / 2 + 20;
       const radius = Math.min(280, 110 + states.length * 26);
       states.forEach((state, index) => {
         const angle = (-Math.PI / 2) + (index / states.length) * Math.PI * 2;
-        state.x = Math.round(centerX + Math.cos(angle) * radius);
-        state.y = Math.round(centerY + Math.sin(angle) * radius);
+        state.x = clampNumber(Math.round(targetCenter.x + Math.cos(angle) * radius), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
+        state.y = clampNumber(Math.round(targetCenter.y + Math.sin(angle) * radius), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
       });
     }
 
@@ -2328,8 +2340,8 @@
       return {
         x: 0,
         y: 0,
-        width: CANVAS_WIDTH,
-        height: CANVAS_HEIGHT
+        width: DEFAULT_VIEW_WIDTH,
+        height: DEFAULT_VIEW_HEIGHT
       };
     }
 
@@ -2358,6 +2370,13 @@
         y: clampNumber(view.y, minY, maxY),
         width: view.width,
         height: view.height
+      };
+    }
+
+    function getViewCenter() {
+      return {
+        x: app.view.x + app.view.width / 2,
+        y: app.view.y + app.view.height / 2
       };
     }
 
@@ -2401,7 +2420,7 @@
     }
 
     function zoomPercentageLabel() {
-      return Math.round((CANVAS_WIDTH / app.view.width) * 100) + "%";
+      return Math.round((DEFAULT_VIEW_WIDTH / app.view.width) * 100) + "%";
     }
 
     function viewBoxString(view) {
