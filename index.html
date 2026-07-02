@@ -592,6 +592,7 @@
 
       <div class="actions">
         <button class="action-btn" id="newAutomatonBtn">Новый</button>
+        <button class="action-btn" id="importTxtBtn">Загрузить TXT</button>
         <button class="action-btn" id="layoutBtn">Разложить</button>
         <button class="action-btn primary" id="exportPngBtn">Скачать PNG</button>
         <button class="action-btn" id="exportTxtBtn">Скачать TXT</button>
@@ -712,6 +713,8 @@
     </main>
   </div>
 
+  <input id="importTxtInput" type="file" accept=".txt,text/plain" hidden>
+
   <script>
     const SVG_NS = "http://www.w3.org/2000/svg";
     const STORAGE_KEY = "dfa-atelier-autosave-v1";
@@ -761,6 +764,8 @@
       stateList: document.getElementById("stateList"),
       centerStatesBtn: document.getElementById("centerStatesBtn"),
       newAutomatonBtn: document.getElementById("newAutomatonBtn"),
+      importTxtBtn: document.getElementById("importTxtBtn"),
+      importTxtInput: document.getElementById("importTxtInput"),
       layoutBtn: document.getElementById("layoutBtn"),
       exportPngBtn: document.getElementById("exportPngBtn"),
       exportTxtBtn: document.getElementById("exportTxtBtn")
@@ -862,6 +867,8 @@
       els.centerStatesBtn.addEventListener("click", arrangeStatesInCircle);
       els.layoutBtn.addEventListener("click", arrangeStatesInCircle);
       els.newAutomatonBtn.addEventListener("click", resetAutomaton);
+      els.importTxtBtn.addEventListener("click", openImportDialog);
+      els.importTxtInput.addEventListener("change", handleImportTxtSelection);
       els.exportPngBtn.addEventListener("click", exportPng);
       els.exportTxtBtn.addEventListener("click", exportTxt);
 
@@ -910,30 +917,40 @@
     }
 
     function normalizeAutomaton(raw) {
+      const normalizedStates = Array.isArray(raw.states) ? raw.states.map((state) => ({
+        id: String(state.id),
+        label: typeof state.label === "string" ? state.label : "q?",
+        x: clampNumber(Number(state.x), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20),
+        y: clampNumber(Number(state.y), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20),
+        start: Boolean(state.start),
+        accept: Boolean(state.accept)
+      })) : [];
+
+      const normalizedTransitions = Array.isArray(raw.transitions) ? raw.transitions.map((transition) => ({
+        id: String(transition.id),
+        from: String(transition.from),
+        to: String(transition.to),
+        label: typeof transition.label === "string" ? transition.label : ""
+      })) : [];
+
       return {
         meta: {
           name: typeof raw.meta.name === "string" ? raw.meta.name : "Новый автомат",
           alphabet: typeof raw.meta.alphabet === "string" ? raw.meta.alphabet : "",
-          nextStateIndex: Number.isFinite(raw.meta.nextStateIndex) ? raw.meta.nextStateIndex : 1,
-          nextTransitionIndex: Number.isFinite(raw.meta.nextTransitionIndex) ? raw.meta.nextTransitionIndex : 1
+          nextStateIndex: Math.max(
+            Number.isFinite(raw.meta.nextStateIndex) ? raw.meta.nextStateIndex : 1,
+            deriveNextIndex(normalizedStates, "state-")
+          ),
+          nextTransitionIndex: Math.max(
+            Number.isFinite(raw.meta.nextTransitionIndex) ? raw.meta.nextTransitionIndex : 1,
+            deriveNextIndex(normalizedTransitions, "transition-")
+          )
         },
         mode: "select",
         selection: { type: null, id: null },
         transitionDraft: null,
-        states: Array.isArray(raw.states) ? raw.states.map((state) => ({
-          id: String(state.id),
-          label: typeof state.label === "string" ? state.label : "q?",
-          x: clampNumber(Number(state.x), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20),
-          y: clampNumber(Number(state.y), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20),
-          start: Boolean(state.start),
-          accept: Boolean(state.accept)
-        })) : [],
-        transitions: Array.isArray(raw.transitions) ? raw.transitions.map((transition) => ({
-          id: String(transition.id),
-          from: String(transition.from),
-          to: String(transition.to),
-          label: typeof transition.label === "string" ? transition.label : ""
-        })) : []
+        states: normalizedStates,
+        transitions: normalizedTransitions
       };
     }
 
@@ -1467,14 +1484,7 @@
       if (!app.states.length) {
         return;
       }
-      const centerX = CANVAS_WIDTH / 2;
-      const centerY = CANVAS_HEIGHT / 2 + 20;
-      const radius = Math.min(280, 110 + app.states.length * 26);
-      app.states.forEach((state, index) => {
-        const angle = (-Math.PI / 2) + (index / app.states.length) * Math.PI * 2;
-        state.x = Math.round(centerX + Math.cos(angle) * radius);
-        state.y = Math.round(centerY + Math.sin(angle) * radius);
-      });
+      positionStatesInCircle(app.states);
       render();
     }
 
@@ -1484,14 +1494,7 @@
         return;
       }
 
-      const fresh = createStarterAutomaton();
-      app.meta = fresh.meta;
-      app.mode = fresh.mode;
-      app.selection = fresh.selection;
-      app.transitionDraft = fresh.transitionDraft;
-      app.states = fresh.states;
-      app.transitions = fresh.transitions;
-      render();
+      replaceAutomaton(createStarterAutomaton());
     }
 
     function deleteSelected() {
@@ -1569,6 +1572,329 @@
       ));
     }
 
+    function openImportDialog() {
+      els.importTxtInput.value = "";
+      els.importTxtInput.click();
+    }
+
+    async function handleImportTxtSelection(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        return;
+      }
+
+      const confirmed = window.confirm("Загрузить автомат из TXT? Текущий черновик будет заменен.");
+      if (!confirmed) {
+        event.target.value = "";
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        const nextAutomaton = parseAutomatonText(text);
+        replaceAutomaton(nextAutomaton);
+        window.alert("Автомат \"" + (app.meta.name || file.name) + "\" успешно загружен.");
+      } catch (error) {
+        console.error("Не удалось загрузить автомат из TXT", error);
+        window.alert("Не удалось загрузить TXT: " + error.message);
+      } finally {
+        event.target.value = "";
+      }
+    }
+
+    function parseAutomatonText(rawText) {
+      const text = String(rawText || "").replace(/\r\n?/g, "\n").trim();
+      if (!text) {
+        throw new Error("Файл пуст.");
+      }
+
+      const machineReadable = tryParseMachineReadableAutomaton(text);
+      const snapshot = tryParseSnapshotAutomaton(text);
+
+      if (snapshot && machineReadable && automatonSemanticsMatch(snapshot, machineReadable)) {
+        return snapshot;
+      }
+
+      if (machineReadable && snapshot) {
+        return applySnapshotLayout(machineReadable, snapshot);
+      }
+
+      if (snapshot) {
+        return snapshot;
+      }
+
+      if (machineReadable) {
+        return machineReadable;
+      }
+
+      throw new Error("Не найдено корректное описание автомата.");
+    }
+
+    function tryParseSnapshotAutomaton(text) {
+      const snapshotLine = text
+        .split("\n")
+        .map((line) => line.trim())
+        .find((line) => line.startsWith("snapshot="));
+
+      if (!snapshotLine) {
+        return null;
+      }
+
+      try {
+        const snapshotRaw = JSON.parse(decodeURIComponent(snapshotLine.slice("snapshot=".length)));
+        if (!snapshotRaw || !Array.isArray(snapshotRaw.states) || !Array.isArray(snapshotRaw.transitions) || !snapshotRaw.meta) {
+          throw new Error("Некорректный snapshot.");
+        }
+        return normalizeAutomaton(snapshotRaw);
+      } catch (error) {
+        console.warn("Snapshot проигнорирован из-за ошибки чтения", error);
+        return null;
+      }
+    }
+
+    function tryParseMachineReadableAutomaton(text) {
+      try {
+        return parseMachineReadableAutomaton(text);
+      } catch (error) {
+        console.warn("Machine-readable блок не удалось разобрать", error);
+        return null;
+      }
+    }
+
+    function parseMachineReadableAutomaton(text) {
+      const lines = text.split("\n");
+      const machineStart = lines.findIndex((line) => line.trim() === "Machine-readable:");
+      const machineLines = machineStart >= 0
+        ? lines.slice(machineStart + 1).map((line) => line.trim()).filter(Boolean)
+        : [];
+
+      const name = extractPrefixedValue(lines, "Automaton:") || "Импортированный автомат";
+      const alphabetValue = extractMachineValue(machineLines, "alphabet") || extractPrefixedValue(lines, "Alphabet:") || "";
+      const stateValue = extractMachineValue(machineLines, "states") || extractPrefixedValue(lines, "States:") || "";
+      const startValue = extractMachineValue(machineLines, "start") || extractPrefixedValue(lines, "Start:") || "";
+      const acceptingValue = extractMachineValue(machineLines, "accepting") || extractPrefixedValue(lines, "Accepting:") || "";
+
+      const machineTransitions = parseMachineTransitions(machineLines);
+      const humanTransitions = machineTransitions.length ? [] : parseHumanTransitions(lines);
+      const transitionRows = machineTransitions.length ? machineTransitions : humanTransitions;
+
+      const acceptingStates = parseListValue(acceptingValue);
+      const startState = parseSingleValue(startValue);
+      const declaredStates = parseListValue(stateValue);
+      const transitionStates = transitionRows.flatMap((transition) => [transition.from, transition.to]);
+      const allStates = Array.from(new Set(
+        [...declaredStates, ...acceptingStates, ...transitionStates, startState].filter(Boolean)
+      ));
+
+      if (!allStates.length) {
+        throw new Error("В файле нет списка состояний.");
+      }
+
+      const stateIdByLabel = new Map();
+      const states = allStates.map((label, index) => {
+        const id = "state-" + (index + 1);
+        stateIdByLabel.set(label, id);
+        return {
+          id,
+          label,
+          x: STATE_RADIUS + 20,
+          y: STATE_RADIUS + 20,
+          start: label === startState,
+          accept: acceptingStates.includes(label)
+        };
+      });
+
+      positionStatesInCircle(states);
+
+      const transitions = [];
+      const groupedTransitions = new Map();
+      transitionRows.forEach((transition) => {
+        const fromId = stateIdByLabel.get(transition.from);
+        const toId = stateIdByLabel.get(transition.to);
+        if (!fromId || !toId) {
+          throw new Error("Переход ссылается на неизвестное состояние: " + transition.from + " -> " + transition.to);
+        }
+
+        const routeKey = fromId + "::" + toId;
+        if (!groupedTransitions.has(routeKey)) {
+          groupedTransitions.set(routeKey, []);
+        }
+        groupedTransitions.get(routeKey).push(...parseSymbols(transition.label));
+      });
+
+      let transitionIndex = 1;
+      groupedTransitions.forEach((symbols, routeKey) => {
+        const [fromId, toId] = routeKey.split("::");
+        const uniqueSymbols = Array.from(new Set(symbols.filter(Boolean)));
+        transitions.push({
+          id: "transition-" + transitionIndex++,
+          from: fromId,
+          to: toId,
+          label: uniqueSymbols.join(", ")
+        });
+      });
+
+      return normalizeAutomaton({
+        meta: {
+          name,
+          alphabet: alphabetValue,
+          nextStateIndex: states.length + 1,
+          nextTransitionIndex: transitions.length + 1
+        },
+        states,
+        transitions
+      });
+    }
+
+    function parseMachineTransitions(machineLines) {
+      const transitions = [];
+      machineLines.forEach((line) => {
+        const match = line.match(/^delta\((.*?),(.*)\)=(.*)$/);
+        if (!match) {
+          return;
+        }
+        const from = match[1].trim();
+        const symbol = match[2].trim();
+        const to = match[3].trim();
+        if (!from || !to || !symbol) {
+          return;
+        }
+        transitions.push({ from, to, label: symbol });
+      });
+      return transitions;
+    }
+
+    function parseHumanTransitions(lines) {
+      const transitions = [];
+      const sectionStart = lines.findIndex((line) => line.trim() === "Transitions:");
+      if (sectionStart < 0) {
+        return transitions;
+      }
+
+      for (let index = sectionStart + 1; index < lines.length; index += 1) {
+        const trimmed = lines[index].trim();
+        if (!trimmed || trimmed === "Machine-readable:") {
+          break;
+        }
+        if (trimmed === "(none)") {
+          continue;
+        }
+
+        const match = trimmed.match(/^(.*?)\s+--(.*?)-->\s+(.*)$/);
+        if (!match) {
+          continue;
+        }
+        transitions.push({
+          from: match[1].trim(),
+          label: match[2].trim(),
+          to: match[3].trim()
+        });
+      }
+
+      return transitions;
+    }
+
+    function extractMachineValue(machineLines, key) {
+      const prefix = key + "=";
+      const line = machineLines.find((item) => item.startsWith(prefix));
+      return line ? line.slice(prefix.length).trim() : "";
+    }
+
+    function extractPrefixedValue(lines, prefix) {
+      const line = lines.find((item) => item.startsWith(prefix));
+      return line ? line.slice(prefix.length).trim() : "";
+    }
+
+    function parseListValue(raw) {
+      const normalized = String(raw || "").trim();
+      if (!normalized || /^\((none|not set)\)$/i.test(normalized)) {
+        return [];
+      }
+      return Array.from(new Set(
+        normalized
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      ));
+    }
+
+    function parseSingleValue(raw) {
+      const normalized = String(raw || "").trim();
+      if (!normalized || /^\((none|not set)\)$/i.test(normalized)) {
+        return "";
+      }
+      return normalized;
+    }
+
+    function automatonSemanticsMatch(left, right) {
+      const leftSignature = serializeAutomatonSemantics(left);
+      const rightSignature = serializeAutomatonSemantics(right);
+      return leftSignature === rightSignature;
+    }
+
+    function serializeAutomatonSemantics(automaton) {
+      const startState = automaton.states.find((state) => state.start);
+      const accepting = automaton.states
+        .filter((state) => state.accept)
+        .map((state) => state.label)
+        .sort()
+        .join("|");
+      const states = automaton.states.map((state) => state.label).sort().join("|");
+      const alphabet = parseAlphabet(automaton.meta.alphabet).sort().join("|");
+      const transitions = automaton.transitions
+        .map((transition) => {
+          const from = automaton.states.find((state) => state.id === transition.from);
+          const to = automaton.states.find((state) => state.id === transition.to);
+          if (!from || !to) {
+            return "";
+          }
+          return from.label + "->" + to.label + ":" + parseSymbols(transition.label).sort().join("&");
+        })
+        .sort()
+        .join("|");
+
+      return [
+        automaton.meta.name || "",
+        alphabet,
+        states,
+        startState ? startState.label : "",
+        accepting,
+        transitions
+      ].join("::");
+    }
+
+    function applySnapshotLayout(machineReadable, snapshot) {
+      const machineLabels = machineReadable.states.map((state) => state.label).sort().join("|");
+      const snapshotLabels = snapshot.states.map((state) => state.label).sort().join("|");
+      if (machineLabels !== snapshotLabels) {
+        return machineReadable;
+      }
+
+      const snapshotStateByLabel = new Map(snapshot.states.map((state) => [state.label, state]));
+      machineReadable.states.forEach((state) => {
+        const snapshotState = snapshotStateByLabel.get(state.label);
+        if (!snapshotState) {
+          return;
+        }
+        state.x = snapshotState.x;
+        state.y = snapshotState.y;
+      });
+      return machineReadable;
+    }
+
+    function replaceAutomaton(nextAutomaton) {
+      const normalized = normalizeAutomaton(nextAutomaton);
+      const preferredState = normalized.states.find((state) => state.start) || normalized.states[0] || null;
+      pointerDrag = null;
+      app.meta = normalized.meta;
+      app.mode = "select";
+      app.selection = preferredState ? { type: "state", id: preferredState.id } : { type: null, id: null };
+      app.transitionDraft = null;
+      app.states = normalized.states;
+      app.transitions = normalized.transitions;
+      render();
+    }
+
     function exportTxt() {
       const alphabet = parseAlphabet(app.meta.alphabet);
       const start = app.states.find((state) => state.start);
@@ -1613,9 +1939,35 @@
           lines.push("delta(" + from.label + "," + symbol + ")=" + to.label);
         });
       });
+      lines.push("snapshot=" + encodeURIComponent(JSON.stringify(createSnapshotPayload())));
 
       const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
       downloadBlob(blob, safeFileName(app.meta.name || "dfa") + ".txt");
+    }
+
+    function createSnapshotPayload() {
+      return {
+        meta: {
+          name: app.meta.name,
+          alphabet: app.meta.alphabet,
+          nextStateIndex: app.meta.nextStateIndex,
+          nextTransitionIndex: app.meta.nextTransitionIndex
+        },
+        states: app.states.map((state) => ({
+          id: state.id,
+          label: state.label,
+          x: state.x,
+          y: state.y,
+          start: state.start,
+          accept: state.accept
+        })),
+        transitions: app.transitions.map((transition) => ({
+          id: transition.id,
+          from: transition.from,
+          to: transition.to,
+          label: transition.label
+        }))
+      };
     }
 
     function exportPng() {
@@ -1744,6 +2096,42 @@
         " M " + (x - STATE_RADIUS - 42) + " " + (y - 18) +
         " L " + (x - STATE_RADIUS - 24) + " " + y +
         " L " + (x - STATE_RADIUS - 42) + " " + (y + 18);
+    }
+
+    function positionStatesInCircle(states) {
+      if (!states.length) {
+        return;
+      }
+
+      if (states.length === 1) {
+        states[0].x = CANVAS_WIDTH / 2;
+        states[0].y = CANVAS_HEIGHT / 2;
+        return;
+      }
+
+      const centerX = CANVAS_WIDTH / 2;
+      const centerY = CANVAS_HEIGHT / 2 + 20;
+      const radius = Math.min(280, 110 + states.length * 26);
+      states.forEach((state, index) => {
+        const angle = (-Math.PI / 2) + (index / states.length) * Math.PI * 2;
+        state.x = Math.round(centerX + Math.cos(angle) * radius);
+        state.y = Math.round(centerY + Math.sin(angle) * radius);
+      });
+    }
+
+    function deriveNextIndex(items, prefix) {
+      let maxIndex = 0;
+      items.forEach((item) => {
+        const id = String(item.id || "");
+        if (!id.startsWith(prefix)) {
+          return;
+        }
+        const candidate = Number(id.slice(prefix.length));
+        if (Number.isInteger(candidate)) {
+          maxIndex = Math.max(maxIndex, candidate);
+        }
+      });
+      return maxIndex + 1;
     }
 
     function svgEl(name, attrs = {}, children = []) {
