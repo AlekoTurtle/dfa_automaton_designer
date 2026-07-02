@@ -34,17 +34,21 @@
 
     html, body {
       margin: 0;
+      height: 100%;
       min-height: 100%;
       background:
         radial-gradient(circle at top left, rgba(18, 112, 107, 0.2), transparent 32%),
         radial-gradient(circle at top right, rgba(231, 111, 81, 0.18), transparent 26%),
         linear-gradient(180deg, var(--bg) 0%, #f9f4ea 52%, var(--bg-deep) 100%);
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+      background-size: cover;
       color: var(--ink);
       font-family: var(--font-ui);
     }
 
     body {
-      min-height: 100vh;
+      min-height: 100dvh;
     }
 
     button, input, textarea {
@@ -104,7 +108,7 @@
       display: flex;
       flex-direction: column;
       gap: 18px;
-      min-height: 100vh;
+      min-height: 100dvh;
       padding: 20px;
     }
 
@@ -316,9 +320,45 @@
       font-size: 1rem;
     }
 
+    .canvas-tools {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .zoom-toolbar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 999px;
+      background: rgba(31, 47, 49, 0.08);
+    }
+
+    .zoom-btn {
+      min-width: 42px;
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--ink);
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .zoom-btn.readout {
+      min-width: 76px;
+      font-size: 0.92rem;
+      color: var(--accent);
+    }
+
     .canvas-stage {
       position: relative;
       min-height: 560px;
+      overflow: hidden;
       background:
         radial-gradient(circle at 20% 20%, rgba(18, 112, 107, 0.08), transparent 28%),
         radial-gradient(circle at 80% 18%, rgba(231, 111, 81, 0.08), transparent 24%),
@@ -544,6 +584,20 @@
       }
     }
 
+    @media (min-width: 1281px) {
+      .workspace {
+        min-height: calc(100dvh - 154px);
+      }
+
+      .canvas-panel {
+        min-height: 0;
+      }
+
+      .canvas-stage {
+        min-height: 0;
+      }
+    }
+
     @media (max-width: 720px) {
       .app-shell {
         padding: 12px;
@@ -568,6 +622,12 @@
       .canvas-footer {
         flex-direction: column;
         align-items: flex-start;
+      }
+
+      .canvas-tools {
+        width: 100%;
+        margin-left: 0;
+        justify-content: space-between;
       }
 
       .canvas-stage {
@@ -627,6 +687,8 @@
             <div class="shortcut-row"><span>Выбор</span><code>V</code></div>
             <div class="shortcut-row"><span>Вершина</span><code>S</code></div>
             <div class="shortcut-row"><span>Переход</span><code>T</code></div>
+            <div class="shortcut-row"><span>Зум</span><code>Wheel</code></div>
+            <div class="shortcut-row"><span>Панорама</span><code>Drag</code></div>
             <div class="shortcut-row"><span>Удалить выделенное</span><code>Delete</code></div>
           </div>
         </section>
@@ -638,7 +700,14 @@
             <strong id="modeTitle">Режим: выбор</strong>
             <div class="muted" id="modeHint">Перетаскивайте вершины и редактируйте свойства справа.</div>
           </div>
-          <div class="selection-badge" id="selectionBadge">Выделение: <em>ничего</em></div>
+          <div class="canvas-tools">
+            <div class="zoom-toolbar">
+              <button type="button" class="zoom-btn" id="zoomOutBtn" title="Отдалить">-</button>
+              <button type="button" class="zoom-btn readout" id="zoomResetBtn" title="Сбросить масштаб">100%</button>
+              <button type="button" class="zoom-btn" id="zoomInBtn" title="Приблизить">+</button>
+            </div>
+            <div class="selection-badge" id="selectionBadge">Выделение: <em>ничего</em></div>
+          </div>
         </div>
 
         <div class="canvas-stage">
@@ -721,6 +790,9 @@
     const CANVAS_WIDTH = 1600;
     const CANVAS_HEIGHT = 900;
     const STATE_RADIUS = 56;
+    const MIN_VIEW_WIDTH = 420;
+    const MAX_VIEW_WIDTH = CANVAS_WIDTH * 1.8;
+    const PAN_THRESHOLD = 5;
 
     const EXPORT_SVG_STYLES = `
       .scene-title { fill: #1f2f31; font: 700 30px "Avenir Next", "Trebuchet MS", sans-serif; letter-spacing: 0.03em; }
@@ -747,6 +819,9 @@
       modeTitle: document.getElementById("modeTitle"),
       modeHint: document.getElementById("modeHint"),
       selectionBadge: document.getElementById("selectionBadge"),
+      zoomOutBtn: document.getElementById("zoomOutBtn"),
+      zoomResetBtn: document.getElementById("zoomResetBtn"),
+      zoomInBtn: document.getElementById("zoomInBtn"),
       draftHint: document.getElementById("draftHint"),
       footerMeta: document.getElementById("footerMeta"),
       inspectorEmpty: document.getElementById("inspectorEmpty"),
@@ -869,6 +944,9 @@
       els.newAutomatonBtn.addEventListener("click", resetAutomaton);
       els.importTxtBtn.addEventListener("click", openImportDialog);
       els.importTxtInput.addEventListener("change", handleImportTxtSelection);
+      els.zoomOutBtn.addEventListener("click", () => zoomCanvas(1 / 1.16));
+      els.zoomResetBtn.addEventListener("click", resetView);
+      els.zoomInBtn.addEventListener("click", () => zoomCanvas(1.16));
       els.exportPngBtn.addEventListener("click", exportPng);
       els.exportTxtBtn.addEventListener("click", exportTxt);
 
@@ -876,6 +954,7 @@
       els.diagram.addEventListener("pointermove", onCanvasPointerMove);
       els.diagram.addEventListener("pointerup", stopDragging);
       els.diagram.addEventListener("pointerleave", stopDragging);
+      els.diagram.addEventListener("wheel", onCanvasWheel, { passive: false });
 
       document.addEventListener("keydown", (event) => {
         if (isTypingTarget(event.target)) {
@@ -894,6 +973,8 @@
           setMode("add-state");
         } else if (event.key.toLowerCase() === "t") {
           setMode("add-transition");
+        } else if (event.key === "0") {
+          resetView();
         } else if (event.key === "Escape" && app.transitionDraft) {
           app.transitionDraft = null;
           render();
@@ -949,6 +1030,7 @@
         mode: "select",
         selection: { type: null, id: null },
         transitionDraft: null,
+        view: normalizeView(raw.view),
         states: normalizedStates,
         transitions: normalizedTransitions
       };
@@ -965,6 +1047,7 @@
         mode: "select",
         selection: { type: "state", id: "state-1" },
         transitionDraft: null,
+        view: createDefaultView(),
         states: [
           { id: "state-1", label: "q0", x: 430, y: 450, start: true, accept: false },
           { id: "state-2", label: "q1", x: 930, y: 450, start: false, accept: true }
@@ -976,6 +1059,7 @@
     function saveAutomaton() {
       const payload = {
         meta: app.meta,
+        view: app.view,
         states: app.states,
         transitions: app.transitions
       };
@@ -988,6 +1072,12 @@
       renderInspector();
       renderStateList();
       renderValidation();
+      renderToolbar();
+      saveAutomaton();
+    }
+
+    function renderViewport() {
+      renderCanvas();
       renderToolbar();
       saveAutomaton();
     }
@@ -1050,10 +1140,12 @@
         els.selectionBadge.innerHTML = "Выделение: <em>ничего</em>";
       }
 
-      els.footerMeta.textContent = app.states.length + " вершин, " + app.transitions.length + " переходов";
+      els.zoomResetBtn.textContent = zoomPercentageLabel();
+      els.footerMeta.textContent = app.states.length + " вершин, " + app.transitions.length + " переходов, масштаб " + zoomPercentageLabel();
     }
 
     function renderCanvas() {
+      els.diagram.setAttribute("viewBox", viewBoxString(app.view));
       els.diagram.replaceChildren();
 
       const defs = svgEl("defs");
@@ -1335,14 +1427,36 @@
       });
 
       if (alphabet.length) {
+        const incompleteStates = [];
         app.states.forEach((state) => {
+          let missingCount = 0;
           alphabet.forEach((symbol) => {
             const key = state.id + "::" + symbol;
             if (!symbolMap.has(key)) {
-              messages.push({ level: "warn", text: "Из состояния " + state.label + " нет перехода по символу \"" + symbol + "\"." });
+              missingCount += 1;
             }
           });
+          if (missingCount > 0) {
+            incompleteStates.push({ label: state.label, missingCount });
+          }
         });
+
+        if (incompleteStates.length === 1) {
+          const onlyState = incompleteStates[0];
+          messages.push({
+            level: "warn",
+            text: "Автомат пока неполный: у состояния " + onlyState.label + " не хватает переходов по " + onlyState.missingCount + " символам алфавита."
+          });
+        } else if (incompleteStates.length > 1) {
+          const preview = incompleteStates
+            .slice(0, 4)
+            .map((state) => state.label + " (" + state.missingCount + ")")
+            .join(", ");
+          messages.push({
+            level: "warn",
+            text: "Автомат пока неполный: у " + incompleteStates.length + " состояний отсутствуют некоторые переходы по алфавиту. Например: " + preview + "."
+          });
+        }
       }
 
       if (!messages.length) {
@@ -1367,6 +1481,9 @@
     }
 
     function onCanvasPointerDown(event) {
+      if (event.button !== 0) {
+        return;
+      }
       if (event.target !== els.diagram) {
         return;
       }
@@ -1377,12 +1494,15 @@
         app.transitionDraft = null;
         render();
       } else {
-        clearSelection();
+        startPan(event);
       }
     }
 
     function onStatePointerDown(event, stateId) {
       event.stopPropagation();
+      if (event.button !== 0) {
+        return;
+      }
 
       if (app.mode === "add-transition") {
         handleTransitionClick(stateId);
@@ -1397,6 +1517,7 @@
       const state = getState(stateId);
       const point = getSvgPoint(event);
       pointerDrag = {
+        kind: "state",
         stateId,
         offsetX: state.x - point.x,
         offsetY: state.y - point.y,
@@ -1407,6 +1528,25 @@
 
     function onCanvasPointerMove(event) {
       if (!pointerDrag) {
+        return;
+      }
+
+      if (pointerDrag.kind === "pan") {
+        const deltaX = event.clientX - pointerDrag.startClientX;
+        const deltaY = event.clientY - pointerDrag.startClientY;
+        if (Math.abs(deltaX) > PAN_THRESHOLD || Math.abs(deltaY) > PAN_THRESHOLD) {
+          pointerDrag.moved = true;
+        }
+
+        const scaleX = app.view.width / Math.max(1, els.diagram.clientWidth);
+        const scaleY = app.view.height / Math.max(1, els.diagram.clientHeight);
+        app.view = clampViewBounds({
+          x: pointerDrag.originView.x - deltaX * scaleX,
+          y: pointerDrag.originView.y - deltaY * scaleY,
+          width: pointerDrag.originView.width,
+          height: pointerDrag.originView.height
+        });
+        renderViewport();
         return;
       }
 
@@ -1423,7 +1563,14 @@
     }
 
     function stopDragging() {
+      if (!pointerDrag) {
+        return;
+      }
+      const shouldClearSelection = pointerDrag.kind === "pan" && !pointerDrag.moved;
       pointerDrag = null;
+      if (shouldClearSelection) {
+        clearSelection();
+      }
     }
 
     function handleTransitionClick(stateId) {
@@ -1570,6 +1717,47 @@
           .map((part) => part.trim())
           .filter(Boolean)
       ));
+    }
+
+    function onCanvasWheel(event) {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomCanvas(factor, getSvgPoint(event));
+    }
+
+    function zoomCanvas(factor, focusPoint = null) {
+      const nextWidth = clampNumber(app.view.width / factor, MIN_VIEW_WIDTH, MAX_VIEW_WIDTH);
+      const nextHeight = nextWidth * (CANVAS_HEIGHT / CANVAS_WIDTH);
+      const scale = nextWidth / app.view.width;
+      const focus = focusPoint || {
+        x: app.view.x + app.view.width / 2,
+        y: app.view.y + app.view.height / 2
+      };
+
+      app.view = clampViewBounds({
+        x: focus.x - (focus.x - app.view.x) * scale,
+        y: focus.y - (focus.y - app.view.y) * scale,
+        width: nextWidth,
+        height: nextHeight
+      });
+      renderViewport();
+    }
+
+    function resetView() {
+      app.view = createDefaultView();
+      renderViewport();
+    }
+
+    function startPan(event) {
+      pointerDrag = {
+        kind: "pan",
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        originView: { ...app.view },
+        moved: false
+      };
+      els.diagram.setPointerCapture(event.pointerId);
     }
 
     function openImportDialog() {
@@ -1890,6 +2078,7 @@
       app.mode = "select";
       app.selection = preferredState ? { type: "state", id: preferredState.id } : { type: null, id: null };
       app.transitionDraft = null;
+      app.view = normalized.view || createDefaultView();
       app.states = normalized.states;
       app.transitions = normalized.transitions;
       render();
@@ -2002,6 +2191,7 @@
     function serializeDiagramSvg() {
       const clone = els.diagram.cloneNode(true);
       clone.setAttribute("xmlns", SVG_NS);
+      clone.setAttribute("viewBox", "0 0 " + CANVAS_WIDTH + " " + CANVAS_HEIGHT);
       const style = document.createElementNS(SVG_NS, "style");
       style.textContent = EXPORT_SVG_STYLES;
       clone.insertBefore(style, clone.firstChild);
@@ -2134,6 +2324,43 @@
       return maxIndex + 1;
     }
 
+    function createDefaultView() {
+      return {
+        x: 0,
+        y: 0,
+        width: CANVAS_WIDTH,
+        height: CANVAS_HEIGHT
+      };
+    }
+
+    function normalizeView(rawView) {
+      if (!rawView || typeof rawView !== "object") {
+        return createDefaultView();
+      }
+
+      const width = clampNumber(Number(rawView.width), MIN_VIEW_WIDTH, MAX_VIEW_WIDTH);
+      const height = width * (CANVAS_HEIGHT / CANVAS_WIDTH);
+      return clampViewBounds({
+        x: Number.isFinite(Number(rawView.x)) ? Number(rawView.x) : 0,
+        y: Number.isFinite(Number(rawView.y)) ? Number(rawView.y) : 0,
+        width,
+        height
+      });
+    }
+
+    function clampViewBounds(view) {
+      const minX = view.width > CANVAS_WIDTH ? CANVAS_WIDTH - view.width : 0;
+      const maxX = view.width > CANVAS_WIDTH ? 0 : CANVAS_WIDTH - view.width;
+      const minY = view.height > CANVAS_HEIGHT ? CANVAS_HEIGHT - view.height : 0;
+      const maxY = view.height > CANVAS_HEIGHT ? 0 : CANVAS_HEIGHT - view.height;
+      return {
+        x: clampNumber(view.x, minX, maxX),
+        y: clampNumber(view.y, minY, maxY),
+        width: view.width,
+        height: view.height
+      };
+    }
+
     function svgEl(name, attrs = {}, children = []) {
       const node = document.createElementNS(SVG_NS, name);
       Object.entries(attrs).forEach(([key, value]) => {
@@ -2171,6 +2398,14 @@
 
     function round(value) {
       return Math.round(value * 100) / 100;
+    }
+
+    function zoomPercentageLabel() {
+      return Math.round((CANVAS_WIDTH / app.view.width) * 100) + "%";
+    }
+
+    function viewBoxString(view) {
+      return round(view.x) + " " + round(view.y) + " " + round(view.width) + " " + round(view.height);
     }
 
     function stateRoleLabel(state) {
