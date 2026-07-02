@@ -51,7 +51,7 @@
       min-height: 100dvh;
     }
 
-    button, input, textarea {
+    button, input, textarea, select {
       font: inherit;
     }
 
@@ -69,7 +69,7 @@
       transform: translateY(0);
     }
 
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       border: 1px solid rgba(31, 47, 49, 0.14);
       border-radius: 14px;
@@ -80,7 +80,7 @@
       transition: border-color 0.16s ease, box-shadow 0.16s ease;
     }
 
-    input:focus, textarea:focus {
+    input:focus, textarea:focus, select:focus {
       border-color: rgba(18, 112, 107, 0.58);
       box-shadow: 0 0 0 4px rgba(18, 112, 107, 0.12);
     }
@@ -185,8 +185,8 @@
       display: grid;
       grid-template-columns: 320px minmax(0, 1fr) 320px;
       gap: 18px;
-      flex: 1;
-      min-height: 0;
+      flex: 0 0 auto;
+      align-items: start;
     }
 
     .panel,
@@ -211,6 +211,7 @@
     .canvas-panel {
       display: grid;
       grid-template-rows: auto 1fr auto;
+      min-height: clamp(820px, 88dvh, 1180px);
     }
 
     .card {
@@ -357,7 +358,7 @@
 
     .canvas-stage {
       position: relative;
-      min-height: 560px;
+      min-height: clamp(700px, 78dvh, 1060px);
       overflow: hidden;
       background:
         radial-gradient(circle at 20% 20%, rgba(18, 112, 107, 0.08), transparent 28%),
@@ -456,6 +457,26 @@
       fill: var(--muted);
       font: 600 13px var(--font-ui);
       text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .annotation-note {
+      fill: rgba(255, 252, 246, 0.9);
+      stroke: rgba(31, 47, 49, 0.14);
+      stroke-width: 2;
+    }
+
+    .annotation-note.selected {
+      fill: rgba(255, 247, 235, 0.95);
+      stroke: var(--accent-strong);
+      stroke-width: 3;
+    }
+
+    .annotation-text {
+      fill: var(--ink);
+      font-family: var(--font-ui);
+      font-weight: 700;
+      dominant-baseline: hanging;
       pointer-events: none;
     }
 
@@ -584,20 +605,6 @@
       }
     }
 
-    @media (min-width: 1281px) {
-      .workspace {
-        min-height: calc(100dvh - 154px);
-      }
-
-      .canvas-panel {
-        min-height: 0;
-      }
-
-      .canvas-stage {
-        min-height: 0;
-      }
-    }
-
     @media (max-width: 720px) {
       .app-shell {
         padding: 12px;
@@ -631,7 +638,11 @@
       }
 
       .canvas-stage {
-        min-height: 460px;
+        min-height: 520px;
+      }
+
+      .canvas-panel {
+        min-height: 0;
       }
     }
   </style>
@@ -648,6 +659,7 @@
         <button class="tool-btn active" data-mode="select" id="selectModeBtn">Выбор</button>
         <button class="tool-btn" data-mode="add-state" id="stateModeBtn">Вершина</button>
         <button class="tool-btn" data-mode="add-transition" id="transitionModeBtn">Переход</button>
+        <button class="tool-btn" data-mode="add-text" id="textModeBtn">Текст</button>
       </div>
 
       <div class="actions">
@@ -682,13 +694,19 @@
 
         <section class="card">
           <h2>Подсказки</h2>
-          <p class="help-text">В режиме <strong>Вершина</strong> нажмите на холст, чтобы добавить состояние. В режиме <strong>Переход</strong> нажмите источник, потом назначение.</p>
+          <p class="help-text">В режиме <strong>Вершина</strong> нажмите на холст, чтобы добавить состояние. В режиме <strong>Переход</strong> нажмите источник, потом назначение. В режиме <strong>Текст</strong> нажмите на холст, чтобы добавить заметку. В режиме <strong>Выбор</strong> тяните по пустому месту для рамки выделения.</p>
           <div class="shortcut-list">
             <div class="shortcut-row"><span>Выбор</span><code>V</code></div>
             <div class="shortcut-row"><span>Вершина</span><code>S</code></div>
             <div class="shortcut-row"><span>Переход</span><code>T</code></div>
-            <div class="shortcut-row"><span>Зум</span><code>Wheel</code></div>
-            <div class="shortcut-row"><span>Панорама</span><code>Drag</code></div>
+            <div class="shortcut-row"><span>Текст</span><code>X</code></div>
+            <div class="shortcut-row"><span>Быстрая вершина</span><code>Double Click</code></div>
+            <div class="shortcut-row"><span>Группа</span><code>Shift + Click</code></div>
+            <div class="shortcut-row"><span>Рамка</span><code>Drag on Empty</code></div>
+            <div class="shortcut-row"><span>Зум</span><code>Shift + Wheel / +/-</code></div>
+            <div class="shortcut-row"><span>Панорама</span><code>Space + Drag</code></div>
+            <div class="shortcut-row"><span>Панорама 2</span><code>Middle Drag</code></div>
+            <div class="shortcut-row"><span>Вид по содержимому</span><code>Shift + 1</code></div>
             <div class="shortcut-row"><span>Удалить выделенное</span><code>Delete</code></div>
           </div>
         </section>
@@ -705,6 +723,7 @@
               <button type="button" class="zoom-btn" id="zoomOutBtn" title="Отдалить">-</button>
               <button type="button" class="zoom-btn readout" id="zoomResetBtn" title="Сбросить масштаб">100%</button>
               <button type="button" class="zoom-btn" id="zoomInBtn" title="Приблизить">+</button>
+              <button type="button" class="zoom-btn" id="zoomFitBtn" title="Показать весь автомат">Всё</button>
             </div>
             <div class="selection-badge" id="selectionBadge">Выделение: <em>ничего</em></div>
           </div>
@@ -735,11 +754,11 @@
             <div class="inspector-grid">
               <label>
                 <span class="label-text">X</span>
-                <input id="stateXInput" type="number" min="0" max="1600" step="1">
+                <input id="stateXInput" type="number" min="0" max="6400" step="1">
               </label>
               <label>
                 <span class="label-text">Y</span>
-                <input id="stateYInput" type="number" min="0" max="900" step="1">
+                <input id="stateYInput" type="number" min="0" max="3600" step="1">
               </label>
             </div>
 
@@ -751,6 +770,15 @@
             <label class="toggle-line">
               <input id="stateAcceptInput" type="checkbox">
               <span>Принимающее состояние</span>
+            </label>
+
+            <label>
+              <span class="label-text">Форма вершины</span>
+              <select id="stateShapeSelect">
+                <option value="circle">Круг</option>
+                <option value="square">Квадрат</option>
+                <option value="pentagon">Пятиугольник</option>
+              </select>
             </label>
 
             <button type="button" class="danger-btn" id="deleteStateBtn">Удалить вершину</button>
@@ -771,6 +799,31 @@
 
             <button type="button" class="danger-btn" id="deleteTransitionBtn">Удалить переход</button>
           </form>
+
+          <form id="textInspector" hidden>
+            <label>
+              <span class="label-text">Текст на поле</span>
+              <textarea id="textContentInput" placeholder="Комментарий, подсказка, заметка"></textarea>
+            </label>
+
+            <div class="inspector-grid">
+              <label>
+                <span class="label-text">X</span>
+                <input id="textXInput" type="number" min="0" max="6400" step="1">
+              </label>
+              <label>
+                <span class="label-text">Y</span>
+                <input id="textYInput" type="number" min="0" max="3600" step="1">
+              </label>
+            </div>
+
+            <label>
+              <span class="label-text">Размер текста</span>
+              <input id="textSizeInput" type="number" min="14" max="72" step="1">
+            </label>
+
+            <button type="button" class="danger-btn" id="deleteTextBtn">Удалить текст</button>
+          </form>
         </section>
 
         <section class="card">
@@ -787,11 +840,24 @@
   <script>
     const SVG_NS = "http://www.w3.org/2000/svg";
     const STORAGE_KEY = "dfa-atelier-autosave-v1";
-    const CANVAS_WIDTH = 4800;
-    const CANVAS_HEIGHT = 2700;
+    const CANVAS_WIDTH = 6400;
+    const CANVAS_HEIGHT = 3600;
     const DEFAULT_VIEW_WIDTH = 1600;
     const DEFAULT_VIEW_HEIGHT = 900;
     const STATE_RADIUS = 56;
+    const STATE_BOX_HALF = 54;
+    const STATE_BOX_CORNER = 18;
+    const STATE_PENTAGON_RADIUS = 60;
+    const STATE_POSITION_MARGIN = STATE_PENTAGON_RADIUS + 20;
+    const STATE_INNER_INSET = 11;
+    const DEFAULT_TEXT_SIZE = 26;
+    const MIN_TEXT_SIZE = 14;
+    const MAX_TEXT_SIZE = 72;
+    const TEXT_PADDING_X = 15;
+    const TEXT_PADDING_Y = 12;
+    const TEXT_LINE_HEIGHT = 1.28;
+    const TEXT_MIN_WIDTH = 128;
+    const TEXT_MARGIN = 22;
     const MIN_VIEW_WIDTH = 420;
     const MAX_VIEW_WIDTH = CANVAS_WIDTH;
     const PAN_THRESHOLD = 5;
@@ -810,6 +876,9 @@
       .state-label { fill: #1f2f31; font: 700 26px "Avenir Next", "Trebuchet MS", sans-serif; text-anchor: middle; dominant-baseline: central; }
       .start-arrow { fill: none; stroke: #1f2f31; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
       .state-caption { fill: #6d7671; font: 600 13px "Avenir Next", "Trebuchet MS", sans-serif; text-anchor: middle; }
+      .annotation-note { fill: rgba(255, 252, 246, 0.9); stroke: rgba(31, 47, 49, 0.14); stroke-width: 2; }
+      .annotation-note.selected { fill: rgba(255, 247, 235, 0.95); stroke: #e76f51; stroke-width: 3; }
+      .annotation-text { fill: #1f2f31; font-family: "Avenir Next", "Trebuchet MS", sans-serif; font-weight: 700; dominant-baseline: hanging; }
     `;
 
     const els = {
@@ -824,6 +893,7 @@
       zoomOutBtn: document.getElementById("zoomOutBtn"),
       zoomResetBtn: document.getElementById("zoomResetBtn"),
       zoomInBtn: document.getElementById("zoomInBtn"),
+      zoomFitBtn: document.getElementById("zoomFitBtn"),
       draftHint: document.getElementById("draftHint"),
       footerMeta: document.getElementById("footerMeta"),
       inspectorEmpty: document.getElementById("inspectorEmpty"),
@@ -834,10 +904,17 @@
       stateYInput: document.getElementById("stateYInput"),
       stateStartInput: document.getElementById("stateStartInput"),
       stateAcceptInput: document.getElementById("stateAcceptInput"),
+      stateShapeSelect: document.getElementById("stateShapeSelect"),
       deleteStateBtn: document.getElementById("deleteStateBtn"),
       transitionRouteInput: document.getElementById("transitionRouteInput"),
       transitionLabelInput: document.getElementById("transitionLabelInput"),
       deleteTransitionBtn: document.getElementById("deleteTransitionBtn"),
+      textInspector: document.getElementById("textInspector"),
+      textContentInput: document.getElementById("textContentInput"),
+      textXInput: document.getElementById("textXInput"),
+      textYInput: document.getElementById("textYInput"),
+      textSizeInput: document.getElementById("textSizeInput"),
+      deleteTextBtn: document.getElementById("deleteTextBtn"),
       stateList: document.getElementById("stateList"),
       centerStatesBtn: document.getElementById("centerStatesBtn"),
       newAutomatonBtn: document.getElementById("newAutomatonBtn"),
@@ -850,6 +927,7 @@
 
     const app = loadAutomaton();
     let pointerDrag = null;
+    let spacePanActive = false;
 
     bindUi();
     render();
@@ -883,7 +961,7 @@
         if (!current) {
           return;
         }
-        current.x = clampNumber(Number(event.target.value), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
+        current.x = clampNumber(Number(event.target.value), STATE_POSITION_MARGIN, CANVAS_WIDTH - STATE_POSITION_MARGIN);
         render();
       });
 
@@ -892,7 +970,7 @@
         if (!current) {
           return;
         }
-        current.y = clampNumber(Number(event.target.value), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
+        current.y = clampNumber(Number(event.target.value), STATE_POSITION_MARGIN, CANVAS_HEIGHT - STATE_POSITION_MARGIN);
         render();
       });
 
@@ -920,6 +998,15 @@
         render();
       });
 
+      els.stateShapeSelect.addEventListener("change", (event) => {
+        const current = getSelectedState();
+        if (!current) {
+          return;
+        }
+        current.shape = normalizeStateShape(event.target.value);
+        render();
+      });
+
       els.deleteStateBtn.addEventListener("click", () => {
         if (app.selection.type === "state") {
           deleteState(app.selection.id);
@@ -941,6 +1028,52 @@
         }
       });
 
+      els.textContentInput.addEventListener("input", (event) => {
+        const current = getSelectedText();
+        if (!current) {
+          return;
+        }
+        current.content = event.target.value;
+        clampTextAnnotationInPlace(current);
+        render();
+      });
+
+      els.textXInput.addEventListener("input", (event) => {
+        const current = getSelectedText();
+        if (!current) {
+          return;
+        }
+        current.x = Number(event.target.value);
+        clampTextAnnotationInPlace(current);
+        render();
+      });
+
+      els.textYInput.addEventListener("input", (event) => {
+        const current = getSelectedText();
+        if (!current) {
+          return;
+        }
+        current.y = Number(event.target.value);
+        clampTextAnnotationInPlace(current);
+        render();
+      });
+
+      els.textSizeInput.addEventListener("input", (event) => {
+        const current = getSelectedText();
+        if (!current) {
+          return;
+        }
+        current.size = normalizeTextSize(event.target.value);
+        clampTextAnnotationInPlace(current);
+        render();
+      });
+
+      els.deleteTextBtn.addEventListener("click", () => {
+        if (app.selection.type === "text") {
+          deleteText(app.selection.id);
+        }
+      });
+
       els.centerStatesBtn.addEventListener("click", arrangeStatesInCircle);
       els.layoutBtn.addEventListener("click", arrangeStatesInCircle);
       els.newAutomatonBtn.addEventListener("click", resetAutomaton);
@@ -949,17 +1082,26 @@
       els.zoomOutBtn.addEventListener("click", () => zoomCanvas(1 / 1.16));
       els.zoomResetBtn.addEventListener("click", resetView);
       els.zoomInBtn.addEventListener("click", () => zoomCanvas(1.16));
+      els.zoomFitBtn.addEventListener("click", fitViewToContent);
       els.exportPngBtn.addEventListener("click", exportPng);
       els.exportTxtBtn.addEventListener("click", exportTxt);
 
       els.diagram.addEventListener("pointerdown", onCanvasPointerDown);
       els.diagram.addEventListener("pointermove", onCanvasPointerMove);
       els.diagram.addEventListener("pointerup", stopDragging);
-      els.diagram.addEventListener("pointerleave", stopDragging);
+      els.diagram.addEventListener("pointercancel", stopDragging);
+      els.diagram.addEventListener("lostpointercapture", stopDragging);
       els.diagram.addEventListener("wheel", onCanvasWheel, { passive: false });
+      els.diagram.addEventListener("dblclick", onCanvasDoubleClick);
 
       document.addEventListener("keydown", (event) => {
         if (isTypingTarget(event.target)) {
+          return;
+        }
+
+        if (event.key === " ") {
+          spacePanActive = true;
+          event.preventDefault();
           return;
         }
 
@@ -975,12 +1117,34 @@
           setMode("add-state");
         } else if (event.key.toLowerCase() === "t") {
           setMode("add-transition");
+        } else if (event.key.toLowerCase() === "x") {
+          setMode("add-text");
+        } else if (event.key === "+" || event.key === "=") {
+          event.preventDefault();
+          zoomCanvas(1.16);
+        } else if (event.key === "-" || event.key === "_") {
+          event.preventDefault();
+          zoomCanvas(1 / 1.16);
+        } else if (event.key === "!" || (event.key === "1" && event.shiftKey)) {
+          fitViewToContent();
+        } else if (event.key === ")" || (event.key === "0" && event.shiftKey)) {
+          resetView();
         } else if (event.key === "0") {
           resetView();
         } else if (event.key === "Escape" && app.transitionDraft) {
           app.transitionDraft = null;
           render();
         }
+      });
+
+      document.addEventListener("keyup", (event) => {
+        if (event.key === " ") {
+          spacePanActive = false;
+        }
+      });
+
+      window.addEventListener("blur", () => {
+        spacePanActive = false;
       });
     }
 
@@ -1003,10 +1167,11 @@
       const normalizedStates = Array.isArray(raw.states) ? raw.states.map((state) => ({
         id: String(state.id),
         label: typeof state.label === "string" ? state.label : "q?",
-        x: clampNumber(Number(state.x), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20),
-        y: clampNumber(Number(state.y), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20),
+        x: clampNumber(Number(state.x), STATE_POSITION_MARGIN, CANVAS_WIDTH - STATE_POSITION_MARGIN),
+        y: clampNumber(Number(state.y), STATE_POSITION_MARGIN, CANVAS_HEIGHT - STATE_POSITION_MARGIN),
         start: Boolean(state.start),
-        accept: Boolean(state.accept)
+        accept: Boolean(state.accept),
+        shape: normalizeStateShape(state.shape)
       })) : [];
 
       const normalizedTransitions = Array.isArray(raw.transitions) ? raw.transitions.map((transition) => ({
@@ -1015,6 +1180,16 @@
         to: String(transition.to),
         label: typeof transition.label === "string" ? transition.label : ""
       })) : [];
+
+      const normalizedTexts = Array.isArray(raw.texts)
+        ? raw.texts.map((textItem, index) => normalizeTextAnnotation({
+            id: textItem && textItem.id ? String(textItem.id) : "text-" + (index + 1),
+            content: typeof textItem.content === "string" ? textItem.content : "",
+            x: Number(textItem.x),
+            y: Number(textItem.y),
+            size: textItem.size
+          }))
+        : [];
 
       return {
         meta: {
@@ -1027,14 +1202,19 @@
           nextTransitionIndex: Math.max(
             Number.isFinite(raw.meta.nextTransitionIndex) ? raw.meta.nextTransitionIndex : 1,
             deriveNextIndex(normalizedTransitions, "transition-")
+          ),
+          nextTextIndex: Math.max(
+            Number.isFinite(raw.meta.nextTextIndex) ? raw.meta.nextTextIndex : 1,
+            deriveNextIndex(normalizedTexts, "text-")
           )
         },
         mode: "select",
-        selection: { type: null, id: null },
+        selection: { type: null, id: null, ids: [] },
         transitionDraft: null,
         view: normalizeView(raw.view),
         states: normalizedStates,
-        transitions: normalizedTransitions
+        transitions: normalizedTransitions,
+        texts: normalizedTexts
       };
     }
 
@@ -1044,17 +1224,19 @@
           name: "Новый автомат",
           alphabet: "0, 1",
           nextStateIndex: 3,
-          nextTransitionIndex: 1
+          nextTransitionIndex: 1,
+          nextTextIndex: 1
         },
         mode: "select",
-        selection: { type: "state", id: "state-1" },
+        selection: { type: "state", id: "state-1", ids: ["state-1"] },
         transitionDraft: null,
         view: createDefaultView(),
         states: [
-          { id: "state-1", label: "q0", x: 430, y: 450, start: true, accept: false },
-          { id: "state-2", label: "q1", x: 930, y: 450, start: false, accept: true }
+          { id: "state-1", label: "q0", x: 430, y: 450, start: true, accept: false, shape: "circle" },
+          { id: "state-2", label: "q1", x: 930, y: 450, start: false, accept: true, shape: "circle" }
         ],
-        transitions: []
+        transitions: [],
+        texts: []
       };
     }
 
@@ -1063,7 +1245,8 @@
         meta: app.meta,
         view: app.view,
         states: app.states,
-        transitions: app.transitions
+        transitions: app.transitions,
+        texts: app.texts
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     }
@@ -1101,7 +1284,7 @@
       const hints = {
         "select": {
           title: "Режим: выбор",
-          hint: "Перетаскивайте вершины и редактируйте свойства справа."
+          hint: "Перетаскивайте вершины, собирайте группу через Shift или рамкой и редактируйте свойства справа."
         },
         "add-state": {
           title: "Режим: вершина",
@@ -1110,6 +1293,10 @@
         "add-transition": {
           title: "Режим: переход",
           hint: "Выберите вершину-источник, затем вершину-назначение."
+        },
+        "add-text": {
+          title: "Режим: текст",
+          hint: "Нажмите в свободное место холста, чтобы поставить заметку или подпись."
         }
       };
 
@@ -1125,7 +1312,10 @@
         els.draftHint.textContent = "Автосохранение включено в браузере.";
       }
 
-      if (app.selection.type === "state") {
+      const selectedStateIds = getSelectedStateIds();
+      if (selectedStateIds.length > 1) {
+        els.selectionBadge.innerHTML = "Выделение: <em>" + selectedStateIds.length + " вершин</em>";
+      } else if (app.selection.type === "state") {
         const state = getSelectedState();
         els.selectionBadge.innerHTML = "Выделение: <em>" + (state ? "вершина " + escapeHtml(state.label) : "ничего") + "</em>";
       } else if (app.selection.type === "transition") {
@@ -1138,12 +1328,20 @@
         } else {
           els.selectionBadge.innerHTML = "Выделение: <em>ничего</em>";
         }
+      } else if (app.selection.type === "text") {
+        const textItem = getSelectedText();
+        if (textItem) {
+          const preview = textPreview(textItem.content);
+          els.selectionBadge.innerHTML = "Выделение: <em>текст " + escapeHtml(preview) + "</em>";
+        } else {
+          els.selectionBadge.innerHTML = "Выделение: <em>ничего</em>";
+        }
       } else {
         els.selectionBadge.innerHTML = "Выделение: <em>ничего</em>";
       }
 
       els.zoomResetBtn.textContent = zoomPercentageLabel();
-      els.footerMeta.textContent = app.states.length + " вершин, " + app.transitions.length + " переходов, поле " + CANVAS_WIDTH + " x " + CANVAS_HEIGHT + ", масштаб " + zoomPercentageLabel();
+      els.footerMeta.textContent = app.states.length + " вершин, " + app.transitions.length + " переходов, " + app.texts.length + " заметок, поле " + CANVAS_WIDTH + " x " + CANVAS_HEIGHT + ", масштаб " + zoomPercentageLabel();
     }
 
     function renderCanvas() {
@@ -1245,34 +1443,22 @@
 
       const stateLayer = svgEl("g");
       app.states.forEach((state) => {
-        const selected = app.selection.type === "state" && app.selection.id === state.id;
+        const selected = isStateSelected(state.id);
         const group = svgEl("g");
         group.style.cursor = app.mode === "add-transition" ? "crosshair" : "grab";
         group.addEventListener("pointerdown", (event) => onStatePointerDown(event, state.id));
 
         if (state.start) {
           group.append(svgEl("path", {
-            d: startArrowPath(state.x, state.y),
+            d: startArrowPath(state),
             class: "start-arrow"
           }));
         }
 
-        group.append(
-          svgEl("circle", {
-            cx: state.x,
-            cy: state.y,
-            r: STATE_RADIUS,
-            class: "state-body" + (selected ? " selected" : "")
-          })
-        );
+        group.append(createStateBodyShape(state, selected));
 
         if (state.accept) {
-          group.append(svgEl("circle", {
-            cx: state.x,
-            cy: state.y,
-            r: STATE_RADIUS - 11,
-            class: "state-inner"
-          }));
+          group.append(createStateInnerShape(state));
         }
 
         group.append(
@@ -1291,15 +1477,78 @@
         stateLayer.append(group);
       });
       els.diagram.append(stateLayer);
+
+      const textLayer = svgEl("g");
+      app.texts.forEach((textItem) => {
+        const selected = app.selection.type === "text" && app.selection.id === textItem.id;
+        const box = getTextBox(textItem);
+        const group = svgEl("g");
+        group.style.cursor = "grab";
+        group.addEventListener("pointerdown", (event) => onTextPointerDown(event, textItem.id));
+
+        group.append(svgEl("rect", {
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
+          rx: "18",
+          class: "annotation-note" + (selected ? " selected" : "")
+        }));
+
+        const textNode = svgEl("text", {
+          x: box.textX,
+          y: box.textY,
+          class: "annotation-text",
+          "font-size": box.size
+        });
+
+        box.lines.forEach((line, index) => {
+          textNode.append(svgEl("tspan", {
+            x: box.textX,
+            dy: index === 0 ? "0" : round(box.size * TEXT_LINE_HEIGHT)
+          }, [document.createTextNode(line || " ")]));
+        });
+
+        group.append(textNode);
+        textLayer.append(group);
+      });
+      els.diagram.append(textLayer);
+
+      if (pointerDrag && pointerDrag.kind === "marquee" && pointerDrag.moved) {
+        const rect = getSelectionRect(pointerDrag.startPoint, pointerDrag.currentPoint || pointerDrag.startPoint);
+        els.diagram.append(svgEl("rect", {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          rx: "10",
+          fill: "rgba(18,112,107,0.08)",
+          stroke: "#12706b",
+          "stroke-width": "3",
+          "stroke-dasharray": "10 8",
+          "pointer-events": "none"
+        }));
+      }
     }
 
     function renderInspector() {
+      const selectedStateIds = getSelectedStateIds();
+      const isMultiStateSelection = selectedStateIds.length > 1;
       const selectedState = getSelectedState();
       const selectedTransition = getSelectedTransition();
+      const selectedText = getSelectedText();
 
-      els.inspectorEmpty.hidden = Boolean(selectedState || selectedTransition);
-      els.stateInspector.hidden = !selectedState;
+      els.inspectorEmpty.hidden = Boolean(selectedState || selectedTransition || selectedText);
+      els.stateInspector.hidden = !selectedState || isMultiStateSelection;
       els.transitionInspector.hidden = !selectedTransition;
+      els.textInspector.hidden = !selectedText;
+
+      if (isMultiStateSelection) {
+        els.inspectorEmpty.hidden = false;
+        els.inspectorEmpty.textContent = "Выбрано " + selectedStateIds.length + " вершин. Перетаскивайте любую из них, чтобы двигать всю группу. Для редактирования свойств оставьте одну вершину.";
+      } else if (!selectedState && !selectedTransition && !selectedText) {
+        els.inspectorEmpty.textContent = "Выделите вершину, переход или текст, чтобы редактировать подписи, координаты и флаги.";
+      }
 
       if (selectedState) {
         if (document.activeElement !== els.stateLabelInput) {
@@ -1313,6 +1562,7 @@
         }
         els.stateStartInput.checked = selectedState.start;
         els.stateAcceptInput.checked = selectedState.accept;
+        els.stateShapeSelect.value = normalizeStateShape(selectedState.shape);
       }
 
       if (selectedTransition) {
@@ -1323,6 +1573,21 @@
           els.transitionLabelInput.value = selectedTransition.label;
         }
       }
+
+      if (selectedText) {
+        if (document.activeElement !== els.textContentInput) {
+          els.textContentInput.value = selectedText.content;
+        }
+        if (document.activeElement !== els.textXInput) {
+          els.textXInput.value = Math.round(selectedText.x);
+        }
+        if (document.activeElement !== els.textYInput) {
+          els.textYInput.value = Math.round(selectedText.y);
+        }
+        if (document.activeElement !== els.textSizeInput) {
+          els.textSizeInput.value = normalizeTextSize(selectedText.size);
+        }
+      }
     }
 
     function renderStateList() {
@@ -1330,10 +1595,14 @@
       app.states.forEach((state) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "state-chip" + (app.selection.type === "state" && app.selection.id === state.id ? " active" : "");
+        button.className = "state-chip" + (isStateSelected(state.id) ? " active" : "");
         button.innerHTML = "<span><strong>" + escapeHtml(state.label) + "</strong><br><small>" + stateRoleLabel(state) + "</small></span><small>" + Math.round(state.x) + ", " + Math.round(state.y) + "</small>";
-        button.addEventListener("click", () => {
-          selectState(state.id);
+        button.addEventListener("click", (event) => {
+          if (event.shiftKey) {
+            toggleStateInSelection(state.id);
+          } else {
+            selectState(state.id);
+          }
           setMode("select");
         });
         els.stateList.append(button);
@@ -1380,6 +1649,9 @@
         const normalized = state.label.trim();
         if (!normalized) {
           messages.push({ level: "error", text: "У одной из вершин пустое имя." });
+          return;
+        }
+        if (isSquareState(state)) {
           return;
         }
         if (labels.has(normalized)) {
@@ -1483,6 +1755,12 @@
     }
 
     function onCanvasPointerDown(event) {
+      if (shouldStartPan(event)) {
+        event.preventDefault();
+        startPan(event);
+        return;
+      }
+
       if (event.button !== 0) {
         return;
       }
@@ -1492,16 +1770,24 @@
       const point = getSvgPoint(event);
       if (app.mode === "add-state") {
         createState(point.x, point.y);
+      } else if (app.mode === "add-text") {
+        createTextAnnotation(point.x, point.y);
       } else if (app.mode === "add-transition" && app.transitionDraft) {
         app.transitionDraft = null;
         render();
       } else {
-        startPan(event);
+        startMarqueeSelection(event, point);
       }
     }
 
     function onStatePointerDown(event, stateId) {
       event.stopPropagation();
+      if (shouldStartPan(event)) {
+        event.preventDefault();
+        startPan(event);
+        return;
+      }
+
       if (event.button !== 0) {
         return;
       }
@@ -1511,25 +1797,86 @@
         return;
       }
 
-      selectState(stateId);
+      if (event.shiftKey && app.mode === "select") {
+        toggleStateInSelection(stateId);
+        return;
+      }
+
+      const dragCurrentGroup = app.mode === "select" && isStateSelected(stateId);
+      if (!dragCurrentGroup) {
+        selectState(stateId);
+      }
       if (app.mode !== "select") {
         return;
       }
 
-      const state = getState(stateId);
+      const draggedStateIds = dragCurrentGroup ? getSelectedStateIds() : [stateId];
       const point = getSvgPoint(event);
       pointerDrag = {
-        kind: "state",
-        stateId,
-        offsetX: state.x - point.x,
-        offsetY: state.y - point.y,
-        pointerId: event.pointerId
+        kind: "state-group",
+        stateIds: draggedStateIds,
+        startPoint: point,
+        pointerId: event.pointerId,
+        origins: draggedStateIds.map((id) => {
+          const state = getState(id);
+          return {
+            id,
+            x: state ? state.x : 0,
+            y: state ? state.y : 0
+          };
+        })
+      };
+      els.diagram.setPointerCapture(event.pointerId);
+    }
+
+    function onTextPointerDown(event, textId) {
+      event.stopPropagation();
+      if (shouldStartPan(event)) {
+        event.preventDefault();
+        startPan(event);
+        return;
+      }
+
+      if (event.button !== 0) {
+        return;
+      }
+
+      if (app.mode !== "select") {
+        setMode("select");
+      }
+
+      const textItem = getTextItem(textId);
+      if (!textItem) {
+        return;
+      }
+
+      selectText(textId);
+      const point = getSvgPoint(event);
+      pointerDrag = {
+        kind: "text",
+        textId,
+        startPoint: point,
+        pointerId: event.pointerId,
+        origin: {
+          x: textItem.x,
+          y: textItem.y
+        }
       };
       els.diagram.setPointerCapture(event.pointerId);
     }
 
     function onCanvasPointerMove(event) {
       if (!pointerDrag) {
+        return;
+      }
+
+      if (pointerDrag.kind === "marquee") {
+        const point = getSvgPoint(event);
+        pointerDrag.currentPoint = point;
+        if (!pointerDrag.moved && (Math.abs(point.x - pointerDrag.startPoint.x) > PAN_THRESHOLD || Math.abs(point.y - pointerDrag.startPoint.y) > PAN_THRESHOLD)) {
+          pointerDrag.moved = true;
+        }
+        renderCanvas();
         return;
       }
 
@@ -1552,27 +1899,52 @@
         return;
       }
 
-      const state = getState(pointerDrag.stateId);
-      if (!state) {
-        stopDragging();
+      if (pointerDrag.kind === "state-group") {
+        const point = getSvgPoint(event);
+        const deltaX = point.x - pointerDrag.startPoint.x;
+        const deltaY = point.y - pointerDrag.startPoint.y;
+        pointerDrag.origins.forEach((origin) => {
+          const state = getState(origin.id);
+          if (!state) {
+            return;
+          }
+          state.x = clampNumber(origin.x + deltaX, STATE_POSITION_MARGIN, CANVAS_WIDTH - STATE_POSITION_MARGIN);
+          state.y = clampNumber(origin.y + deltaY, STATE_POSITION_MARGIN, CANVAS_HEIGHT - STATE_POSITION_MARGIN);
+        });
+        render();
         return;
       }
 
-      const point = getSvgPoint(event);
-      state.x = clampNumber(point.x + pointerDrag.offsetX, STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
-      state.y = clampNumber(point.y + pointerDrag.offsetY, STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
-      render();
+      if (pointerDrag.kind === "text") {
+        const point = getSvgPoint(event);
+        const textItem = getTextItem(pointerDrag.textId);
+        if (!textItem) {
+          return;
+        }
+        textItem.x = pointerDrag.origin.x + (point.x - pointerDrag.startPoint.x);
+        textItem.y = pointerDrag.origin.y + (point.y - pointerDrag.startPoint.y);
+        clampTextAnnotationInPlace(textItem);
+        render();
+      }
     }
 
     function stopDragging() {
       if (!pointerDrag) {
         return;
       }
-      const shouldClearSelection = pointerDrag.kind === "pan" && !pointerDrag.moved;
-      pointerDrag = null;
-      if (shouldClearSelection) {
-        clearSelection();
+      if (pointerDrag.kind === "marquee") {
+        const finishedDrag = pointerDrag;
+        pointerDrag = null;
+        if (finishedDrag.moved) {
+          applyMarqueeSelection(finishedDrag);
+        } else if (!finishedDrag.addToSelection) {
+          clearSelection();
+        } else {
+          renderCanvas();
+        }
+        return;
       }
+      pointerDrag = null;
     }
 
     function handleTransitionClick(stateId) {
@@ -1609,15 +1981,45 @@
       const state = {
         id: "state-" + app.meta.nextStateIndex++,
         label,
-        x: clampNumber(Math.round(x), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20),
-        y: clampNumber(Math.round(y), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20),
+        x: clampNumber(Math.round(x), STATE_POSITION_MARGIN, CANVAS_WIDTH - STATE_POSITION_MARGIN),
+        y: clampNumber(Math.round(y), STATE_POSITION_MARGIN, CANVAS_HEIGHT - STATE_POSITION_MARGIN),
         start: app.states.length === 0,
-        accept: false
+        accept: false,
+        shape: "circle"
       };
       app.states.push(state);
       selectState(state.id);
       setMode("select");
       render();
+    }
+
+    function createTextAnnotation(x, y) {
+      const textItem = normalizeTextAnnotation({
+        id: "text-" + app.meta.nextTextIndex++,
+        content: "Новый текст",
+        x,
+        y,
+        size: DEFAULT_TEXT_SIZE
+      });
+      app.texts.push(textItem);
+      setMode("select");
+      selectText(textItem.id);
+      setTimeout(() => {
+        if (els.textContentInput) {
+          els.textContentInput.focus();
+        }
+      }, 0);
+    }
+
+    function onCanvasDoubleClick(event) {
+      if (event.target !== els.diagram) {
+        return;
+      }
+      if (app.mode !== "select") {
+        return;
+      }
+      const point = getSvgPoint(event);
+      createState(point.x, point.y);
     }
 
     function nextStateLabel() {
@@ -1648,21 +2050,34 @@
 
     function deleteSelected() {
       if (app.selection.type === "state") {
-        deleteState(app.selection.id);
+        deleteStates(getSelectedStateIds());
       } else if (app.selection.type === "transition") {
         deleteTransition(app.selection.id);
+      } else if (app.selection.type === "text") {
+        deleteText(app.selection.id);
       }
     }
 
     function deleteState(stateId) {
-      const state = getState(stateId);
-      if (!state) {
+      deleteStates([stateId]);
+    }
+
+    function deleteStates(stateIds) {
+      const uniqueIds = Array.from(new Set((stateIds || []).filter(Boolean)));
+      if (!uniqueIds.length) {
         return;
       }
-      app.states = app.states.filter((item) => item.id !== stateId);
-      app.transitions = app.transitions.filter((transition) => transition.from !== stateId && transition.to !== stateId);
+
+      const removedStartState = uniqueIds.some((stateId) => {
+        const state = getState(stateId);
+        return state ? state.start : false;
+      });
+
+      const removedIdSet = new Set(uniqueIds);
+      app.states = app.states.filter((item) => !removedIdSet.has(item.id));
+      app.transitions = app.transitions.filter((transition) => !removedIdSet.has(transition.from) && !removedIdSet.has(transition.to));
       clearSelection();
-      if (state.start && app.states[0]) {
+      if (removedStartState && app.states[0] && !app.states.some((state) => state.start)) {
         app.states[0].start = true;
       }
       render();
@@ -1674,23 +2089,34 @@
       render();
     }
 
-    function selectState(stateId) {
-      app.selection = { type: "state", id: stateId };
+    function deleteText(textId) {
+      app.texts = app.texts.filter((textItem) => textItem.id !== textId);
+      clearSelection();
       render();
     }
 
+    function selectState(stateId) {
+      setStateSelection([stateId], stateId);
+    }
+
     function selectTransition(transitionId) {
-      app.selection = { type: "transition", id: transitionId };
+      app.selection = { type: "transition", id: transitionId, ids: [] };
+      render();
+    }
+
+    function selectText(textId) {
+      app.selection = { type: "text", id: textId, ids: [] };
       render();
     }
 
     function clearSelection() {
-      app.selection = { type: null, id: null };
+      app.selection = { type: null, id: null, ids: [] };
       render();
     }
 
     function getSelectedState() {
-      return app.selection.type === "state" ? getState(app.selection.id) : null;
+      const selectedIds = getSelectedStateIds();
+      return selectedIds.length === 1 ? getState(selectedIds[0]) : null;
     }
 
     function getSelectedTransition() {
@@ -1699,8 +2125,62 @@
         : null;
     }
 
+    function getSelectedText() {
+      return app.selection.type === "text"
+        ? app.texts.find((textItem) => textItem.id === app.selection.id) || null
+        : null;
+    }
+
+    function getSelectedStateIds() {
+      if (app.selection.type !== "state") {
+        return [];
+      }
+
+      if (Array.isArray(app.selection.ids) && app.selection.ids.length) {
+        return app.selection.ids.filter((id) => Boolean(getState(id)));
+      }
+
+      return app.selection.id && getState(app.selection.id) ? [app.selection.id] : [];
+    }
+
+    function isStateSelected(stateId) {
+      return getSelectedStateIds().includes(stateId);
+    }
+
+    function setStateSelection(stateIds, primaryId = null) {
+      const uniqueIds = Array.from(new Set((stateIds || []).filter((id) => Boolean(getState(id)))));
+      if (!uniqueIds.length) {
+        app.selection = { type: null, id: null, ids: [] };
+        render();
+        return;
+      }
+
+      const selectedPrimaryId = primaryId && uniqueIds.includes(primaryId) ? primaryId : uniqueIds[uniqueIds.length - 1];
+      app.selection = { type: "state", id: selectedPrimaryId, ids: uniqueIds };
+      render();
+    }
+
+    function toggleStateInSelection(stateId) {
+      const currentIds = getSelectedStateIds();
+      if (!currentIds.length || app.selection.type !== "state") {
+        setStateSelection([stateId], stateId);
+        return;
+      }
+
+      if (currentIds.includes(stateId)) {
+        const nextIds = currentIds.filter((id) => id !== stateId);
+        setStateSelection(nextIds);
+      } else {
+        setStateSelection([...currentIds, stateId], stateId);
+      }
+    }
+
     function getState(id) {
       return app.states.find((state) => state.id === id) || null;
+    }
+
+    function getTextItem(id) {
+      return app.texts.find((textItem) => textItem.id === id) || null;
     }
 
     function parseAlphabet(raw) {
@@ -1722,6 +2202,9 @@
     }
 
     function onCanvasWheel(event) {
+      if (!event.shiftKey) {
+        return;
+      }
       event.preventDefault();
       const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
       zoomCanvas(factor, getSvgPoint(event));
@@ -1750,6 +2233,52 @@
       renderViewport();
     }
 
+    function fitViewToContent() {
+      if (!app.states.length && !app.texts.length) {
+        resetView();
+        return;
+      }
+
+      const padding = STATE_RADIUS + 120;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      app.states.forEach((state) => {
+        minX = Math.min(minX, state.x - padding);
+        minY = Math.min(minY, state.y - padding);
+        maxX = Math.max(maxX, state.x + padding);
+        maxY = Math.max(maxY, state.y + padding);
+      });
+
+      app.texts.forEach((textItem) => {
+        const box = getTextBox(textItem);
+        minX = Math.min(minX, box.x - 40);
+        minY = Math.min(minY, box.y - 40);
+        maxX = Math.max(maxX, box.x + box.width + 40);
+        maxY = Math.max(maxY, box.y + box.height + 40);
+      });
+
+      const contentWidth = Math.max(MIN_VIEW_WIDTH, maxX - minX);
+      const contentHeight = Math.max(MIN_VIEW_WIDTH * (DEFAULT_VIEW_HEIGHT / DEFAULT_VIEW_WIDTH), maxY - minY);
+      const aspectRatio = DEFAULT_VIEW_HEIGHT / DEFAULT_VIEW_WIDTH;
+
+      let nextWidth = Math.max(contentWidth, contentHeight / aspectRatio);
+      nextWidth = clampNumber(nextWidth, MIN_VIEW_WIDTH, MAX_VIEW_WIDTH);
+      const nextHeight = nextWidth * aspectRatio;
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      app.view = clampViewBounds({
+        x: centerX - nextWidth / 2,
+        y: centerY - nextHeight / 2,
+        width: nextWidth,
+        height: nextHeight
+      });
+      renderViewport();
+    }
+
     function startPan(event) {
       pointerDrag = {
         kind: "pan",
@@ -1760,6 +2289,43 @@
         moved: false
       };
       els.diagram.setPointerCapture(event.pointerId);
+    }
+
+    function startMarqueeSelection(event, point) {
+      pointerDrag = {
+        kind: "marquee",
+        pointerId: event.pointerId,
+        startPoint: point,
+        currentPoint: point,
+        moved: false,
+        addToSelection: event.shiftKey,
+        baseSelectionIds: getSelectedStateIds()
+      };
+      els.diagram.setPointerCapture(event.pointerId);
+    }
+
+    function shouldStartPan(event) {
+      return event.button === 1 || (event.button === 0 && spacePanActive);
+    }
+
+    function applyMarqueeSelection(dragData) {
+      const rect = getSelectionRect(dragData.startPoint, dragData.currentPoint || dragData.startPoint);
+      const matchedIds = app.states
+        .filter((state) => {
+          const half = getStateOuterHalfSize(state);
+          return state.x + half >= rect.x &&
+            state.x - half <= rect.x + rect.width &&
+            state.y + half >= rect.y &&
+            state.y - half <= rect.y + rect.height;
+        })
+        .map((state) => state.id);
+
+      if (dragData.addToSelection) {
+        setStateSelection([...dragData.baseSelectionIds, ...matchedIds]);
+        return;
+      }
+
+      setStateSelection(matchedIds);
     }
 
     function openImportDialog() {
@@ -1801,6 +2367,10 @@
       const machineReadable = tryParseMachineReadableAutomaton(text);
       const snapshot = tryParseSnapshotAutomaton(text);
 
+      if (snapshot && snapshotRequiresAuthoritativeRestore(snapshot)) {
+        return snapshot;
+      }
+
       if (snapshot && machineReadable && automatonSemanticsMatch(snapshot, machineReadable)) {
         return snapshot;
       }
@@ -1818,6 +2388,33 @@
       }
 
       throw new Error("Не найдено корректное описание автомата.");
+    }
+
+    function snapshotRequiresAuthoritativeRestore(snapshot) {
+      if (!snapshot) {
+        return false;
+      }
+
+      if (Array.isArray(snapshot.texts) && snapshot.texts.length > 0) {
+        return true;
+      }
+
+      const seenLabels = new Set();
+      for (const state of snapshot.states || []) {
+        const normalizedLabel = String(state.label || "").trim();
+        if (normalizeStateShape(state.shape) !== "circle") {
+          return true;
+        }
+        if (!normalizedLabel) {
+          continue;
+        }
+        if (seenLabels.has(normalizedLabel)) {
+          return true;
+        }
+        seenLabels.add(normalizedLabel);
+      }
+
+      return false;
     }
 
     function tryParseSnapshotAutomaton(text) {
@@ -1887,8 +2484,8 @@
         return {
           id,
           label,
-          x: STATE_RADIUS + 20,
-          y: STATE_RADIUS + 20,
+          x: STATE_POSITION_MARGIN,
+          y: STATE_POSITION_MARGIN,
           start: label === startState,
           accept: acceptingStates.includes(label)
         };
@@ -2068,21 +2665,38 @@
         }
         state.x = snapshotState.x;
         state.y = snapshotState.y;
+        state.shape = normalizeStateShape(snapshotState.shape);
       });
+      machineReadable.view = snapshot.view ? normalizeView(snapshot.view) : machineReadable.view;
+      machineReadable.texts = Array.isArray(snapshot.texts)
+        ? snapshot.texts.map((textItem, index) => normalizeTextAnnotation({
+            id: textItem && textItem.id ? String(textItem.id) : "text-" + (index + 1),
+            content: typeof textItem.content === "string" ? textItem.content : "",
+            x: Number(textItem.x),
+            y: Number(textItem.y),
+            size: textItem.size
+          }))
+        : [];
       return machineReadable;
     }
 
     function replaceAutomaton(nextAutomaton) {
       const normalized = normalizeAutomaton(nextAutomaton);
       const preferredState = normalized.states.find((state) => state.start) || normalized.states[0] || null;
+      const preferredText = normalized.texts[0] || null;
       pointerDrag = null;
       app.meta = normalized.meta;
       app.mode = "select";
-      app.selection = preferredState ? { type: "state", id: preferredState.id } : { type: null, id: null };
+      app.selection = preferredState
+        ? { type: "state", id: preferredState.id, ids: [preferredState.id] }
+        : preferredText
+          ? { type: "text", id: preferredText.id, ids: [] }
+          : { type: null, id: null, ids: [] };
       app.transitionDraft = null;
       app.view = normalized.view || createDefaultView();
       app.states = normalized.states;
       app.transitions = normalized.transitions;
+      app.texts = normalized.texts;
       render();
     }
 
@@ -2142,7 +2756,8 @@
           name: app.meta.name,
           alphabet: app.meta.alphabet,
           nextStateIndex: app.meta.nextStateIndex,
-          nextTransitionIndex: app.meta.nextTransitionIndex
+          nextTransitionIndex: app.meta.nextTransitionIndex,
+          nextTextIndex: app.meta.nextTextIndex
         },
         view: {
           x: app.view.x,
@@ -2156,13 +2771,21 @@
           x: state.x,
           y: state.y,
           start: state.start,
-          accept: state.accept
+          accept: state.accept,
+          shape: normalizeStateShape(state.shape)
         })),
         transitions: app.transitions.map((transition) => ({
           id: transition.id,
           from: transition.from,
           to: transition.to,
           label: transition.label
+        })),
+        texts: app.texts.map((textItem) => ({
+          id: textItem.id,
+          content: textItem.content,
+          x: textItem.x,
+          y: textItem.y,
+          size: normalizeTextSize(textItem.size)
         }))
       };
     }
@@ -2220,13 +2843,14 @@
 
     function getTransitionGeometry(transition, from, to) {
       if (from.id === to.id) {
-        const loopTop = from.y - STATE_RADIUS - 18;
+        const outerHalf = getStateOuterHalfSize(from);
+        const loopTop = from.y - outerHalf - 18;
         return {
-          path: "M " + (from.x - STATE_RADIUS * 0.42) + " " + loopTop +
-            " C " + (from.x - STATE_RADIUS * 1.85) + " " + (from.y - STATE_RADIUS * 2.65) +
-            ", " + (from.x + STATE_RADIUS * 1.85) + " " + (from.y - STATE_RADIUS * 2.65) +
-            ", " + (from.x + STATE_RADIUS * 0.42) + " " + loopTop,
-          label: { x: from.x, y: from.y - STATE_RADIUS * 2.55 }
+          path: "M " + (from.x - outerHalf * 0.42) + " " + loopTop +
+            " C " + (from.x - outerHalf * 1.85) + " " + (from.y - outerHalf * 2.65) +
+            ", " + (from.x + outerHalf * 1.85) + " " + (from.y - outerHalf * 2.65) +
+            ", " + (from.x + outerHalf * 0.42) + " " + loopTop,
+          label: { x: from.x, y: from.y - outerHalf * 2.55 }
         };
       }
 
@@ -2249,17 +2873,8 @@
         y: (from.y + to.y) / 2 + perpY * curveOffset
       };
 
-      const startVector = normalize(control.x - from.x, control.y - from.y);
-      const endVector = normalize(control.x - to.x, control.y - to.y);
-
-      const start = {
-        x: from.x + startVector.x * STATE_RADIUS,
-        y: from.y + startVector.y * STATE_RADIUS
-      };
-      const end = {
-        x: to.x + endVector.x * STATE_RADIUS,
-        y: to.y + endVector.y * STATE_RADIUS
-      };
+      const start = getStateBoundaryPoint(from, control.x, control.y);
+      const end = getStateBoundaryPoint(to, control.x, control.y);
 
       const label = quadraticPoint(start, control, end, 0.5);
       return {
@@ -2289,12 +2904,247 @@
       return Math.max(38, text.length * 6.6 + 18);
     }
 
-    function startArrowPath(x, y) {
-      return "M " + (x - STATE_RADIUS - 80) + " " + y +
-        " L " + (x - STATE_RADIUS - 24) + " " + y +
-        " M " + (x - STATE_RADIUS - 42) + " " + (y - 18) +
-        " L " + (x - STATE_RADIUS - 24) + " " + y +
-        " L " + (x - STATE_RADIUS - 42) + " " + (y + 18);
+    function normalizeStateShape(shape) {
+      return shape === "square" || shape === "pentagon" ? shape : "circle";
+    }
+
+    function normalizeTextSize(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return DEFAULT_TEXT_SIZE;
+      }
+      return clampNumber(numeric, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+    }
+
+    function normalizeTextAnnotation(textItem) {
+      const normalized = {
+        id: String(textItem.id),
+        content: typeof textItem.content === "string" ? textItem.content : "",
+        x: Number.isFinite(Number(textItem.x)) ? Number(textItem.x) : 120,
+        y: Number.isFinite(Number(textItem.y)) ? Number(textItem.y) : 160,
+        size: normalizeTextSize(textItem.size)
+      };
+      return clampTextAnnotationInPlace(normalized);
+    }
+
+    function clampTextAnnotationInPlace(textItem) {
+      textItem.size = normalizeTextSize(textItem.size);
+      const box = getTextBox(textItem);
+      textItem.x = clampNumber(textItem.x, TEXT_MARGIN, Math.max(TEXT_MARGIN, CANVAS_WIDTH - box.width - TEXT_MARGIN));
+      textItem.y = clampNumber(textItem.y, TEXT_MARGIN, Math.max(TEXT_MARGIN, CANVAS_HEIGHT - box.height - TEXT_MARGIN));
+      return textItem;
+    }
+
+    function getTextLines(content) {
+      return String(content || "")
+        .replace(/\r\n?/g, "\n")
+        .split("\n");
+    }
+
+    function getTextBox(textItem) {
+      const lines = getTextLines(textItem.content);
+      const size = normalizeTextSize(textItem.size);
+      const longestLine = Math.max(1, ...lines.map((line) => line.length || 1));
+      const width = Math.max(TEXT_MIN_WIDTH, longestLine * size * 0.59 + TEXT_PADDING_X * 2);
+      const height = Math.max(size + TEXT_PADDING_Y * 2, lines.length * size * TEXT_LINE_HEIGHT + TEXT_PADDING_Y * 2);
+      return {
+        x: textItem.x,
+        y: textItem.y,
+        width,
+        height,
+        lines,
+        size,
+        textX: textItem.x + TEXT_PADDING_X,
+        textY: textItem.y + TEXT_PADDING_Y
+      };
+    }
+
+    function textPreview(content) {
+      const compact = String(content || "").replace(/\s+/g, " ").trim();
+      if (!compact) {
+        return "без текста";
+      }
+      return compact.length > 24 ? compact.slice(0, 24) + "..." : compact;
+    }
+
+    function createStateBodyShape(state, selected) {
+      if (isSquareState(state)) {
+        const half = getStateOuterHalfSize(state);
+        return svgEl("rect", {
+          x: state.x - half,
+          y: state.y - half,
+          width: half * 2,
+          height: half * 2,
+          rx: STATE_BOX_CORNER,
+          class: "state-body" + (selected ? " selected" : "")
+        });
+      }
+
+      if (isPentagonState(state)) {
+        return svgEl("polygon", {
+          points: getRegularPolygonPoints(state.x, state.y, STATE_PENTAGON_RADIUS, 5),
+          class: "state-body" + (selected ? " selected" : "")
+        });
+      }
+
+      return svgEl("circle", {
+        cx: state.x,
+        cy: state.y,
+        r: STATE_RADIUS,
+        class: "state-body" + (selected ? " selected" : "")
+      });
+    }
+
+    function createStateInnerShape(state) {
+      if (isSquareState(state)) {
+        const half = Math.max(18, getStateOuterHalfSize(state) - STATE_INNER_INSET);
+        return svgEl("rect", {
+          x: state.x - half,
+          y: state.y - half,
+          width: half * 2,
+          height: half * 2,
+          rx: Math.max(8, STATE_BOX_CORNER - 5),
+          class: "state-inner"
+        });
+      }
+
+      if (isPentagonState(state)) {
+        return svgEl("polygon", {
+          points: getRegularPolygonPoints(state.x, state.y, STATE_PENTAGON_RADIUS - STATE_INNER_INSET, 5),
+          class: "state-inner"
+        });
+      }
+
+      return svgEl("circle", {
+        cx: state.x,
+        cy: state.y,
+        r: STATE_RADIUS - STATE_INNER_INSET,
+        class: "state-inner"
+      });
+    }
+
+    function isSquareState(state) {
+      return Boolean(state) && state.shape === "square";
+    }
+
+    function isPentagonState(state) {
+      return Boolean(state) && state.shape === "pentagon";
+    }
+
+    function getStateOuterHalfSize(state) {
+      if (isSquareState(state)) {
+        return STATE_BOX_HALF;
+      }
+      if (isPentagonState(state)) {
+        return STATE_PENTAGON_RADIUS;
+      }
+      return STATE_RADIUS;
+    }
+
+    function getRegularPolygonVertices(cx, cy, radius, sides, rotation = -Math.PI / 2) {
+      const points = [];
+      for (let index = 0; index < sides; index += 1) {
+        const angle = rotation + index * (Math.PI * 2 / sides);
+        points.push({
+          x: cx + Math.cos(angle) * radius,
+          y: cy + Math.sin(angle) * radius
+        });
+      }
+      return points;
+    }
+
+    function getRegularPolygonPoints(cx, cy, radius, sides, rotation = -Math.PI / 2) {
+      return getRegularPolygonVertices(cx, cy, radius, sides, rotation)
+        .map((point) => round(point.x) + "," + round(point.y))
+        .join(" ");
+    }
+
+    function crossProduct(a, b) {
+      return a.x * b.y - a.y * b.x;
+    }
+
+    function getPolygonBoundaryPoint(vertices, center, direction) {
+      let bestIntersection = null;
+      for (let index = 0; index < vertices.length; index += 1) {
+        const start = vertices[index];
+        const end = vertices[(index + 1) % vertices.length];
+        const edge = {
+          x: end.x - start.x,
+          y: end.y - start.y
+        };
+        const denominator = crossProduct(direction, edge);
+        if (Math.abs(denominator) < 1e-6) {
+          continue;
+        }
+
+        const offset = {
+          x: start.x - center.x,
+          y: start.y - center.y
+        };
+        const rayDistance = crossProduct(offset, edge) / denominator;
+        const edgePosition = crossProduct(offset, direction) / denominator;
+        if (rayDistance < 0 || edgePosition < 0 || edgePosition > 1) {
+          continue;
+        }
+
+        if (!bestIntersection || rayDistance < bestIntersection.rayDistance) {
+          bestIntersection = {
+            rayDistance,
+            x: center.x + direction.x * rayDistance,
+            y: center.y + direction.y * rayDistance
+          };
+        }
+      }
+      return bestIntersection;
+    }
+
+    function getStateBoundaryPoint(state, targetX, targetY) {
+      const dx = targetX - state.x;
+      const dy = targetY - state.y;
+
+      if (!dx && !dy) {
+        return {
+          x: state.x,
+          y: state.y - getStateOuterHalfSize(state)
+        };
+      }
+
+      if (isSquareState(state)) {
+        const half = getStateOuterHalfSize(state);
+        const scale = Math.max(Math.abs(dx) / half, Math.abs(dy) / half);
+        return {
+          x: state.x + dx / scale,
+          y: state.y + dy / scale
+        };
+      }
+
+      if (isPentagonState(state)) {
+        const direction = normalize(dx, dy);
+        const vertices = getRegularPolygonVertices(state.x, state.y, STATE_PENTAGON_RADIUS, 5);
+        const intersection = getPolygonBoundaryPoint(vertices, { x: state.x, y: state.y }, direction);
+        if (intersection) {
+          return {
+            x: intersection.x,
+            y: intersection.y
+          };
+        }
+      }
+
+      const vector = normalize(dx, dy);
+      return {
+        x: state.x + vector.x * STATE_RADIUS,
+        y: state.y + vector.y * STATE_RADIUS
+      };
+    }
+
+    function startArrowPath(state) {
+      const leftEdge = getStateBoundaryPoint(state, state.x - 1, state.y);
+      const leftEdgeX = leftEdge.x;
+      return "M " + (leftEdgeX - 80) + " " + state.y +
+        " L " + (leftEdgeX - 24) + " " + state.y +
+        " M " + (leftEdgeX - 42) + " " + (state.y - 18) +
+        " L " + (leftEdgeX - 24) + " " + state.y +
+        " L " + (leftEdgeX - 42) + " " + (state.y + 18);
     }
 
     function positionStatesInCircle(states, center = null) {
@@ -2308,16 +3158,16 @@
       };
 
       if (states.length === 1) {
-        states[0].x = clampNumber(targetCenter.x, STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
-        states[0].y = clampNumber(targetCenter.y, STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
+        states[0].x = clampNumber(targetCenter.x, STATE_POSITION_MARGIN, CANVAS_WIDTH - STATE_POSITION_MARGIN);
+        states[0].y = clampNumber(targetCenter.y, STATE_POSITION_MARGIN, CANVAS_HEIGHT - STATE_POSITION_MARGIN);
         return;
       }
 
       const radius = Math.min(280, 110 + states.length * 26);
       states.forEach((state, index) => {
         const angle = (-Math.PI / 2) + (index / states.length) * Math.PI * 2;
-        state.x = clampNumber(Math.round(targetCenter.x + Math.cos(angle) * radius), STATE_RADIUS + 20, CANVAS_WIDTH - STATE_RADIUS - 20);
-        state.y = clampNumber(Math.round(targetCenter.y + Math.sin(angle) * radius), STATE_RADIUS + 20, CANVAS_HEIGHT - STATE_RADIUS - 20);
+        state.x = clampNumber(Math.round(targetCenter.x + Math.cos(angle) * radius), STATE_POSITION_MARGIN, CANVAS_WIDTH - STATE_POSITION_MARGIN);
+        state.y = clampNumber(Math.round(targetCenter.y + Math.sin(angle) * radius), STATE_POSITION_MARGIN, CANVAS_HEIGHT - STATE_POSITION_MARGIN);
       });
     }
 
@@ -2380,6 +3230,19 @@
       };
     }
 
+    function getSelectionRect(startPoint, endPoint) {
+      const minX = Math.min(startPoint.x, endPoint.x);
+      const minY = Math.min(startPoint.y, endPoint.y);
+      const maxX = Math.max(startPoint.x, endPoint.x);
+      const maxY = Math.max(startPoint.y, endPoint.y);
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+
     function svgEl(name, attrs = {}, children = []) {
       const node = document.createElementNS(SVG_NS, name);
       Object.entries(attrs).forEach(([key, value]) => {
@@ -2397,7 +3260,7 @@
     }
 
     function isTypingTarget(target) {
-      return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+      return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
     }
 
     function clampNumber(value, min, max) {
@@ -2428,16 +3291,19 @@
     }
 
     function stateRoleLabel(state) {
-      if (state.start && state.accept) {
-        return "start, accept";
-      }
+      const parts = [];
       if (state.start) {
-        return "start";
+        parts.push("start");
       }
       if (state.accept) {
-        return "accept";
+        parts.push("accept");
       }
-      return "state";
+      if (isSquareState(state)) {
+        parts.push("square");
+      } else if (isPentagonState(state)) {
+        parts.push("pentagon");
+      }
+      return parts.join(", ") || "state";
     }
 
     function escapeHtml(input) {
